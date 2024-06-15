@@ -5,19 +5,24 @@ from utime import sleep_ms
 from math import sin, cos, pi
 
 
+# 2024-06-14: works with boochow's ST7735
 # 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
-# an epaper device updates really slowly...
+#             an epaper device updates really slowly...
 # 2024-05-03: ->draw_save_glyph(x, y), ->render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
 # 2024-04-27: ->progressbar(col_pos, row_pos, width, height, state=50, filled=False),
-# 2024-04-26: ->set_oled_brightness(0-255), ->lcd_backlight(0-1024, in case of PCD8544 0-1)
+# 2024-04-26: ->set_oled_brightness(0-255), ->lcd_backlight(0-1024, in case of PCD8544: 0-1)
 # 2024-04-25: optimization, clean up
 # 2024-04-24: *works with SSD1309 ->*sort-of supported with SH1106 driver
-# 2024-02-09: works with SSD1306, SH1106
-# 2024-02-02: works with ST7920, PCD8544, 1.54" e-paper
-# 2024-01-28: A simple class for monochrome displays. ->log(text, textalign),
-#                                                     ->draw_switch(x, y, state),
-#                                                     ->draw_circle(x, y, r, colored, filled),
+# 2024-02-09: works with SSD1306
+# 2024-02-09: works with Robert Hammelrath's SH1106
+# 2024-02-02: works with ST7920, 1.54" e-paper
+# 2024-02-02: works with Mike Causer's PCD8544
+# 2024-01-28: A simple class for monochrome displays.
 #                                                     ->trace(frequency, phase, amplitude, time_ms, colored),
+#                                                     ->draw_circle(x, y, r, colored, filled),
+#                                                     ->draw_switch(x, y, state, scale),
+#                                                     ->log(text, textalign)
+#
 
 
 # ST7920:
@@ -51,7 +56,8 @@ class MonoDisplay:
                  busy=20,
                  scl=19,
                  sda=20,
-                 epd_slow_mode=False):
+                 epd_slow_mode=False,
+                 tft_colored=False):
 
         # --------  CONTROL VARS  --------
         self.DEBUG = debug
@@ -79,7 +85,7 @@ class MonoDisplay:
                     i2c_scan_result = hex(i2c_scan_result[0])
                     print(self.spcr + "I2C OK, scan(): {scan_res}".format(scan_res=i2c_scan_result))
 
-        elif self._device == "nokia_5110" or self._device == "st7920" or self._device == "1in54_epd":
+        else:
             self._backlightpin = Pin(backlight, Pin.OUT)
             self._mosi = Pin(mosi)
             self._miso = Pin(miso)
@@ -89,6 +95,7 @@ class MonoDisplay:
             self._rst = Pin(rst)
             self._busy = Pin(busy)
             self._epd_slow_mode = epd_slow_mode
+            self._tft_colored = tft_colored
 
             self._SPI = SoftSPI(baudrate=self._sck_freq,
                                 polarity=0,
@@ -150,6 +157,17 @@ class MonoDisplay:
                     self._framedata = bytearray(self.W * self.H // 8)
                     self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.MONO_HLSB)
                     self.refresh_epaper()
+
+                elif self._device == "st7735_1in44":
+                    from ST7735_128x128 import TFT
+                    self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
+                    self._display = TFT(spi=self._SPI, aDC=self._dc, aReset=self._rst, aCS=self._cs)
+                    self._display.initb2()
+                    self._display.rgb(False)
+                    self._display.fill(self._display.BLACK)
+                    self._framedata = bytearray(self.W*self.H*2)
+                    self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
+                    self._display._setwindowloc((0, 0), (self.W - 1, self.H - 1))
                 else:
                     pass
 
@@ -204,7 +222,7 @@ class MonoDisplay:
         if value > 1023:
             value = 1023
 
-        if self._device == "st7920":
+        if self._device == "st7920" or self._device == "st7735_1in44":
             if value < self._lcd_brightness:
                 while value != self._lcd_brightness:
                     self._lcd_brightness -= 1
@@ -212,7 +230,7 @@ class MonoDisplay:
                         self._lcd_backlight_pwm.duty(self._lcd_brightness)
                         sleep_ms(8)
                 if self.DEBUG:
-                    print(self.spcr + "ST7920 brightness decreased to: " + str(self._lcd_brightness))
+                    print(self.spcr + "LCD brightness decreased to: " + str(self._lcd_brightness))
             elif value > self._lcd_brightness:
                 while value != self._lcd_brightness:
                     self._lcd_brightness += 1
@@ -220,7 +238,7 @@ class MonoDisplay:
                         self._lcd_backlight_pwm.duty(self._lcd_brightness)
                         sleep_ms(8)
                 if self.DEBUG:
-                    print(self.spcr + "ST7920 brightness increased to: " + str(self._lcd_brightness))
+                    print(self.spcr + "LCD brightness increased to: " + str(self._lcd_brightness))
             else:
                 return -1
 
@@ -289,6 +307,8 @@ class MonoDisplay:
         elif self._device == "1in54_epd":
             self._display.set_frame_memory(self._framedata, 0, 0, self.W, self.H)
             self._display.display_frame()
+        elif self._device == "st7735_1in44":
+            self._display._writedata(self._framedata)
         else:
             return -1
 
@@ -312,7 +332,13 @@ class MonoDisplay:
             color ^= 1
 
         for pixel in curve:
-            self._frame.pixel(int(pixel[0]), int(pixel[1]), color)
+            if self._device == "st7735_1in44":
+                if self._tft_colored:
+                    self._frame.pixel(int(pixel[0]), int(pixel[1]), consts_mono_display.tft_color_theme['trace_color'])
+                else:
+                    self._frame.pixel(int(pixel[0]), int(pixel[1]), consts_mono_display.tft_color_theme['white'])
+            else:
+                self._frame.pixel(int(pixel[0]), int(pixel[1]), color)
 
     def draw_circle(self, x, y, radius, colored, filled):
         # Bresenham algorithm
@@ -323,10 +349,24 @@ class MonoDisplay:
             return
         while True:
             if colored:
-                self._frame.pixel(x - x_pos, y + y_pos, self.COLORED)
-                self._frame.pixel(x + x_pos, y + y_pos, self.COLORED)
-                self._frame.pixel(x + x_pos, y - y_pos, self.COLORED)
-                self._frame.pixel(x - x_pos, y - y_pos, self.COLORED)
+                if self._device == "st7735_1in44":
+                    if self._tft_colored:
+                        self._frame.pixel(x - x_pos, y + y_pos, consts_mono_display.tft_color_theme['circle_color'])
+                        self._frame.pixel(x + x_pos, y + y_pos, consts_mono_display.tft_color_theme['circle_color'])
+                        self._frame.pixel(x + x_pos, y - y_pos, consts_mono_display.tft_color_theme['circle_color'])
+                        self._frame.pixel(x - x_pos, y - y_pos, consts_mono_display.tft_color_theme['circle_color'])
+                    else:
+                        self._frame.pixel(x - x_pos, y + y_pos, consts_mono_display.tft_color_theme['white'])
+                        self._frame.pixel(x + x_pos, y + y_pos, consts_mono_display.tft_color_theme['white'])
+                        self._frame.pixel(x + x_pos, y - y_pos, consts_mono_display.tft_color_theme['white'])
+                        self._frame.pixel(x - x_pos, y - y_pos, consts_mono_display.tft_color_theme['white'])
+
+                else:
+                    self._frame.pixel(x - x_pos, y + y_pos, self.COLORED)
+                    self._frame.pixel(x + x_pos, y + y_pos, self.COLORED)
+                    self._frame.pixel(x + x_pos, y - y_pos, self.COLORED)
+                    self._frame.pixel(x - x_pos, y - y_pos, self.COLORED)
+
             else:
                 self._frame.pixel(x - x_pos, y + y_pos, self.UNCOLORED)
                 self._frame.pixel(x + x_pos, y + y_pos, self.UNCOLORED)
@@ -334,8 +374,16 @@ class MonoDisplay:
                 self._frame.pixel(x - x_pos, y - y_pos, self.UNCOLORED)
 
             if filled:
-                self._frame.hline(x + x_pos, y + y_pos, 2 * (-x_pos) + 1, self.COLORED)
-                self._frame.hline(x + x_pos, y - y_pos, 2 * (-x_pos) + 1, self.COLORED)
+                if self._device == "st7735_1in44":
+                    if self._tft_colored:
+                        self._frame.hline(x + x_pos, y + y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['circle_fill_color'])
+                        self._frame.hline(x + x_pos, y - y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['circle_fill_color'])
+                    else:
+                        self._frame.hline(x + x_pos, y + y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['white'])
+                        self._frame.hline(x + x_pos, y - y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['white'])
+                else:
+                    self._frame.hline(x + x_pos, y + y_pos, 2 * (-x_pos) + 1, self.COLORED)
+                    self._frame.hline(x + x_pos, y - y_pos, 2 * (-x_pos) + 1, self.COLORED)
 
             e2 = err
             if e2 <= y_pos:
@@ -388,24 +436,87 @@ class MonoDisplay:
 
         else:
             if state:
-                self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
-                self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
-                if scale <= 0.8:
-                    self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, 1)
-                    self._frame.pixel(sw_dot_x, sw_dot_y - 1, 1)
+                if self._device == "st7735_1in44":
+                    if self._tft_colored:
+                        self._frame.fill_rect(x, y, sw_body_width, sw_body_height,
+                                              consts_mono_display.tft_color_theme['sw_body_color'])
+                        self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height,
+                                              consts_mono_display.tft_color_theme['sw_toggle_bg_color'])
+                    else:
+                        self._frame.fill_rect(x, y, sw_body_width, sw_body_height,
+                                              consts_mono_display.tft_color_theme['white'])
+                        self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height,
+                                              consts_mono_display.tft_color_theme['black'])
                 else:
-                    self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2)
+                    self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
+                    self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
+
+                if scale <= 0.8:
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1,
+                                              consts_mono_display.tft_color_theme['sw_toggle_color'])
+                            self._frame.pixel(sw_dot_x, sw_dot_y - 1,
+                                              consts_mono_display.tft_color_theme['sw_toggle_color'])
+                        else:
+                            self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1,
+                                              consts_mono_display.tft_color_theme['white'])
+                            self._frame.pixel(sw_dot_x, sw_dot_y - 1,
+                                              consts_mono_display.tft_color_theme['white'])
+
+                    else:
+                        self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, 1)
+                        self._frame.pixel(sw_dot_x, sw_dot_y - 1, 1)
+                else:
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2,
+                                             consts_mono_display.tft_color_theme['sw_toggle_color'])
+                        else:
+                            self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2,
+                                             consts_mono_display.tft_color_theme['white'])
+                    else:
+                        self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2)
 
             else:
                 bottom_pos = (y + sw_body_height - sw_state_bg_height) - gap // 2
-                self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
-                self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
+                if self._device == "st7735_1in44":
+                    if self._tft_colored:
+                        self._frame.fill_rect(x, y, sw_body_width, sw_body_height, consts_mono_display.tft_color_theme['sw_body_color'])
+                        self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height, consts_mono_display.tft_color_theme['sw_toggle_bg_color'])
+                    else:
+                        self._frame.fill_rect(x, y, sw_body_width, sw_body_height,
+                                              consts_mono_display.tft_color_theme['white'])
+                        self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height,
+                                              consts_mono_display.tft_color_theme['black'])
+                else:
+                    self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
+                    self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
 
                 if scale <= 0.8:
-                    self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2, 1)
-                    self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2, 1)
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
+                            self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
+                        else:
+                            self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2,
+                                              consts_mono_display.tft_color_theme['white'])
+                            self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2,
+                                              consts_mono_display.tft_color_theme['white'])
+
+                    else:
+                        self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2, 1)
+                        self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2, 1)
                 else:
-                    self._frame.text("0", sw_dot_x - self._text_size // 2, bottom_pos + sw_state_bg_height // 2 - self._text_size // 2)
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.text("0", sw_dot_x - self._text_size // 2, bottom_pos + sw_state_bg_height // 2 - self._text_size // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
+                        else:
+                            self._frame.text("0", sw_dot_x - self._text_size // 2,
+                                             bottom_pos + sw_state_bg_height // 2 - self._text_size // 2,
+                                             consts_mono_display.tft_color_theme['white'])
+                    else:
+                        self._frame.text("0", sw_dot_x - self._text_size // 2, bottom_pos + sw_state_bg_height // 2 - self._text_size // 2)
 
     def log(self, text, textalign="left"):
         x_pos = 0
@@ -478,7 +589,15 @@ class MonoDisplay:
                     elif textalign == "right":
                         x_pos = self.W - len(self._page[line]) * self._text_size
                     y_pos = line * self._text_size
-                    self._frame.text(self._page[line], x_pos, y_pos, self.COLORED)
+
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.text(self._page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
+                        else:
+                            self._frame.text(self._page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['white'])
+
+                    else:
+                        self._frame.text(self._page[line], x_pos, y_pos, self.COLORED)
 
                 self.show()  # show framebuf line by line
 
@@ -516,7 +635,13 @@ class MonoDisplay:
         x_0 = columns[index_columns]
         y_0 = rows[index_rows]
 
-        self._frame.rect(x_0, y_0, width, height, colored)
+        if self._device == "st7735_1in44":
+            if self._tft_colored:
+                self._frame.rect(x_0, y_0, width, height, consts_mono_display.tft_color_theme['progbar_border_color'])
+            else:
+                self._frame.rect(x_0, y_0, width, height, consts_mono_display.tft_color_theme['white'])
+        else:
+            self._frame.rect(x_0, y_0, width, height, colored)
 
         if state > 100:
             state = 100
@@ -529,7 +654,17 @@ class MonoDisplay:
             for k in range(state):
                 if not k % 8:
                     width_progress = int((width / 100) * k)
-                    self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border, height - border * 2, colored)
+
+                    if self._device == "st7735_1in44":
+                        if self._tft_colored:
+                            self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border, height - border * 2, consts_mono_display.tft_color_theme['progbar_fill_color'])
+                        else:
+                            self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border,
+                                                  height - border * 2,
+                                                  consts_mono_display.tft_color_theme['white'])
+                    else:
+                        self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border, height - border * 2, colored)
+
                     self.show()
 
         else:
@@ -541,9 +676,22 @@ class MonoDisplay:
                     y_2 = y_0 + height - (border + 1)
 
                     if x_2 < width:
-                        self._frame.line(x_1 - 1, y_1, x_2 - 1, y_2, colored)
-                        self._frame.line(x_1, y_1, x_2, y_2, colored)
-                        self._frame.line(x_1 + 1, y_1, x_2 + 1, y_2, colored)
+                        if self._device == "st7735_1in44":
+                            if self._tft_colored:
+                                self._frame.line(x_1 - 1, y_1, x_2 - 1, y_2, consts_mono_display.tft_color_theme['progbar_fill_color'])
+                                self._frame.line(x_1, y_1, x_2, y_2, consts_mono_display.tft_color_theme['progbar_fill_color'])
+                                self._frame.line(x_1 + 1, y_1, x_2 + 1, y_2, consts_mono_display.tft_color_theme['progbar_fill_color'])
+                            else:
+                                self._frame.line(x_1 - 1, y_1, x_2 - 1, y_2,
+                                                 consts_mono_display.tft_color_theme['white'])
+                                self._frame.line(x_1, y_1, x_2, y_2,
+                                                 consts_mono_display.tft_color_theme['white'])
+                                self._frame.line(x_1 + 1, y_1, x_2 + 1, y_2,
+                                                 consts_mono_display.tft_color_theme['white'])
+                        else:
+                            self._frame.line(x_1 - 1, y_1, x_2 - 1, y_2, colored)
+                            self._frame.line(x_1, y_1, x_2, y_2, colored)
+                            self._frame.line(x_1 + 1, y_1, x_2 + 1, y_2, colored)
                         self.show()
 
     @staticmethod
@@ -594,6 +742,7 @@ class MonoDisplay:
     def draw_save_glyph(self, x, y):
         save_glyph = consts_mono_display.save_glyph  # save glyph 32x32
         img_fbuf_save_glyph = framebuf.FrameBuffer(save_glyph, 32, 32, framebuf.MONO_VLSB)
+
         if self._device == "1in54_epd":
             self._frame.fill(0)
             self._frame.blit(img_fbuf_save_glyph, x, y, self.COLORED)

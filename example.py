@@ -70,87 +70,105 @@ def test_display(device, t=0):
 wait_time = 2  # ms
 
 #  --------  1.54" e-paper, 200x200  -------
-e_paper = MonoDisplay(sck_freq=1000000,
-                      mosi=12,
-                      miso=2,
-                      sck=13,
-                      cs=34,
-                      dc=21,
-                      rst=36,
-                      busy=35,
-                      inverted=False,
-                      device="1in54_epd",
-                      debug=False,
-                      epd_slow_mode=False)
+# e_paper = MonoDisplay(sck_freq=4000000,
+#                       mosi=12,
+#                       miso=2,
+#                       sck=13,
+#                       cs=34,
+#                       dc=21,
+#                       rst=36,
+#                       busy=35,
+#                       inverted=False,
+#                       device="1in54_epd",
+#                       debug=False,
+#                       epd_slow_mode=False)
+#
+# test_display(e_paper, wait_time)
+#
+# #  --------  SH1106 OLED, 128x64  --------
+# Oled_sh1106 = MonoDisplay(sck_freq=400000,
+#                           inverted=False,
+#                           device="sh1106_128x64",
+#                           scl=1,
+#                           sda=2,
+#                           debug=False)
+#
+# Oled_sh1106.set_oled_brightness(255)
+# test_display(device=Oled_sh1106, t=wait_time)
+# Oled_sh1106.set_oled_brightness(0)
+#
+# #  --------  SSD1309 OLED, 128x64  --------
+# Oled_ssd1309 = MonoDisplay(sck_freq=400000,
+#                            inverted=False,
+#                            device="ssd1309_128x64",
+#                            scl=16,
+#                            sda=17,
+#                            debug=False)
+#
+# Oled_ssd1309.rotate(90)
+# Oled_ssd1309.set_oled_brightness(255)
+# test_display(Oled_ssd1309, wait_time)
+# Oled_ssd1309.set_oled_brightness(0)
+#
+# #  --------  SSD1306 OLED, 128x64  --------
+# Oled_ssd1306 = MonoDisplay(sck_freq=400000,
+#                            inverted=False,
+#                            scl=15,
+#                            sda=16,
+#                            device="ssd1306_128x64",
+#                            debug=False)
+#
+# Oled_ssd1306.set_oled_brightness(255)
+# test_display(Oled_ssd1306, wait_time)
+# Oled_ssd1306.set_oled_brightness(0)
 
-test_display(e_paper, wait_time)
+# #  --------  84x48 LCD (Nokia 5110 like)  --------
+# Nokia_5110 = MonoDisplay(sck_freq=4000000,
+#                          backlight=8,  # ->Pin number, backlight turned ON on init
+#                          mosi=9,
+#                          miso=7,
+#                          sck=10,
+#                          cs=11,
+#                          dc=6,
+#                          rst=5,
+#                          inverted=False,
+#                          device="nokia_5110",
+#                          debug=False)
+#
+# test_display(Nokia_5110, wait_time)
+# Nokia_5110.lcd_backlight(0)
+#
+# #  --------  ST7920 LCD, 128x64  --------
+# Lcd_st7920 = MonoDisplay(sck_freq=4000000,
+#                          backlight=3,
+#                          mosi=9,
+#                          miso=7,
+#                          sck=10,
+#                          cs=4,
+#                          dc=6,
+#                          rst=5,
+#                          inverted=False,
+#                          device="st7920",
+#                          debug=False)
+#
+# Lcd_st7920.lcd_backlight(value=1024)
+# test_display(Lcd_st7920, wait_time)
+# Lcd_st7920.lcd_backlight(value=16)
 
-#  --------  SH1106 OLED, 128x64  --------
-Oled_sh1106 = MonoDisplay(sck_freq=400000,
-                          inverted=False,
-                          device="sh1106_128x64",
-                          scl=1,
-                          sda=2,
-                          debug=False)
-
-Oled_sh1106.set_oled_brightness(255)
-test_display(device=Oled_sh1106, t=wait_time)
-Oled_sh1106.set_oled_brightness(0)
-
-#  --------  SSD1309 OLED, 128x64  --------
-Oled_ssd1309 = MonoDisplay(sck_freq=400000,
-                           inverted=False,
-                           device="ssd1309_128x64",
-                           scl=16,
-                           sda=17,
-                           debug=False)
-
-Oled_ssd1309.rotate(90)
-Oled_ssd1309.set_oled_brightness(255)
-test_display(Oled_ssd1309, wait_time)
-Oled_ssd1309.set_oled_brightness(0)
-
-#  --------  SSD1306 OLED, 128x64  --------
-Oled_ssd1306 = MonoDisplay(sck_freq=400000,
-                           inverted=False,
-                           scl=15,
-                           sda=18,
-                           device="ssd1306_128x64",
-                           debug=False)
-
-Oled_ssd1306.set_oled_brightness(255)
-test_display(Oled_ssd1306, wait_time)
-Oled_ssd1306.set_oled_brightness(0)
-
-#  --------  84x48 LCD (Nokia 5110 like)  --------
-Nokia_5110 = MonoDisplay(sck_freq=1000000,
-                         backlight=8,  # ->Pin number, backlight turned ON on init
-                         mosi=9,
-                         miso=7,
-                         sck=10,
-                         cs=11,
-                         dc=6,
-                         rst=5,
-                         inverted=False,
-                         device="nokia_5110",
-                         debug=False)
-
-test_display(Nokia_5110, wait_time)
-Nokia_5110.lcd_backlight(0)
-
-#  --------  ST7920 LCD, 128x64  --------
-Lcd_st7920 = MonoDisplay(sck_freq=1000000,
+# #  --------  ST7735 TFT LCD, 128x128  --------
+Lcd_st7735 = MonoDisplay(sck_freq=4000000,
                          backlight=3,
-                         mosi=9,
-                         miso=7,
-                         sck=10,
-                         cs=4,
-                         dc=6,
-                         rst=5,
+                         mosi=10,
+                         miso=45,
+                         sck=9,
+                         cs=11,
+                         dc=8,
+                         rst=7,
                          inverted=False,
-                         device="st7920",
-                         debug=False)
+                         device="st7735_1in44",
+                         tft_colored=False,
+                         debug=True)
 
-Lcd_st7920.lcd_backlight(value=1024)
-test_display(Lcd_st7920, wait_time)
-Lcd_st7920.lcd_backlight(value=16)
+Lcd_st7735.lcd_backlight(value=1024)
+test_display(Lcd_st7735, wait_time)
+Lcd_st7735.lcd_backlight(value=16)
