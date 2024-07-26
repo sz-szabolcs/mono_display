@@ -33,8 +33,6 @@ def test_display(device, t=0):
 
     sleep_ms(t)
 
-
-
     for sw in range(32):
         device.flushframe()
         device.draw_switch(2, 4, state=0, scale=0.1 * sw)
@@ -68,81 +66,6 @@ def test_display(device, t=0):
 
 
 wait_time = 1000  # ms
-
-# #  --------  SSD1306 OLED, 128x64  --------
-#Oled_ssd1306 = MonoDisplay(sck_freq=400000,
-#                           inverted=False,
-#                           scl=15,
-#                           sda=16,
-#                           device="ssd1306_128x64",
-#                           debug=False,
-#                           scrollable_log=True)
-#
-#Oled_ssd1306.set_oled_brightness(255)
-#test_display(Oled_ssd1306, wait_time)
-#Oled_ssd1306.set_oled_brightness(0)
-#for i in range(128):
-#    Oled_ssd1306.log("extra line #" + str(i), 'center')
-#
-#Oled_ssd1306.show_scrollable_log(textalign='left')
-
-
- #  --------  SH1106 OLED, 128x64  --------
-#Oled_sh1106 = MonoDisplay(sck_freq=400000,
-#                          inverted=False,
-#                          device="sh1106_128x64",
-#                          scl=15,
-#                          sda=16,
-#                          debug=False,
-#                          scrollable_log=True,
-#                          up_button_pin=35,
-#                          down_button_pin=36)
-#Oled_sh1106.rotate(180)
-#Oled_sh1106.set_oled_brightness(255)
-#test_display(device=Oled_sh1106, t=wait_time)
-#Oled_sh1106.set_oled_brightness(0)
-#Oled_sh1106.set_oled_brightness(255)
-#for i in range(20):
-#    Oled_sh1106.log("extra line #" + str(i), 'center')
-#
-#Oled_sh1106.show_scrollable_log(textalign='left')
-
-
-
-Lcd_st7735 = MonoDisplay(sck_freq=10000000,
-                         backlight=3,
-                         mosi=10,
-                         miso=45,
-                         sck=9,
-                         cs=11,
-                         dc=8,
-                         rst=7,
-                         inverted=False,
-                         device="st7735_1in44",
-                         tft_colored=True,
-                         debug=False,
-                         scrollable_log=True,
-                         up_button_pin=35,
-                         down_button_pin=36)
-
-Lcd_st7735.lcd_backlight(value=1024)
-test_display(Lcd_st7735, wait_time)
-
-for i in range(16):
-    Lcd_st7735.log("extra line #" + str(i), 'center')
-
-
-Lcd_st7735.show_scrollable_log(textalign='left')
-Lcd_st7735.lcd_backlight(value=16)
-
-
-
-
-
-
-
-
-
 
 
 #  --------  1.54" e-paper, 200x200  -------
@@ -196,6 +119,13 @@ Lcd_st7735.lcd_backlight(value=16)
 #
 # Oled_ssd1306.set_oled_brightness(255)
 # test_display(Oled_ssd1306, wait_time)
+
+# Show Scrollable:
+# for i in range(16):
+#     Oled_ssd1306.log("extra line #" + str(i), 'center')
+
+# Oled_ssd1306.show_scrollable_log(textalign='left')
+
 # Oled_ssd1306.set_oled_brightness(0)
 
 # #  --------  84x48 LCD (Nokia 5110 like)  --------
