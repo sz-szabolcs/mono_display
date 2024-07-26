@@ -13,6 +13,8 @@
   - st7735
 
 ## methods:
+- show_scrollable_log(textalign)
+- log_rtc(rtc_datetime, gmt="local")
 - render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
 - draw_save_glyph(x, y)
 - progressbar(col_pos, row_pos, width, height, state=50, filled=False)
