@@ -7,7 +7,7 @@ from math import sin, cos, pi
 
 # 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
 #               it will show a scrollable window composed from log()'s lines that you can scroll with buttons
-# 2024-07-06: ->log_rtc(self, rtc_datetime, gmt="local")
+# 2024-07-06: ->log_rtc(rtc_datetime, gmt="local")
 # 2024-06-14: works with boochow's ST7735
 # 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
 #             an epaper device updates really slowly...
