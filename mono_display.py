@@ -5,6 +5,9 @@ from utime import sleep_ms
 from math import sin, cos, pi
 
 
+# 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
+#               it will show a scrollable window composed from log()'s lines that you can scroll with buttons
+# 2024-07-06: ->log_rtc(self, rtc_datetime, gmt="local")
 # 2024-06-14: works with boochow's ST7735
 # 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
 #             an epaper device updates really slowly...
@@ -56,6 +59,9 @@ class MonoDisplay:
                  busy=20,
                  scl=19,
                  sda=20,
+                 scrollable_log=False,
+                 up_button_pin=False,
+                 down_button_pin=False,
                  epd_slow_mode=False,
                  tft_colored=False):
 
@@ -66,18 +72,24 @@ class MonoDisplay:
         self._device = device.lower()
         self._epd_mem_clear = [0x00, 0xff] * 2  # used only with e-ink device
         self._last_oled_brightness = 0
+        self._scrollable_log = scrollable_log
         self.spcr = "\t-> "
-        # --------  CONTROL VARS END  --------
 
         # -> init the right driver by given key:
         self._devices_dict = consts_mono_display.display_properties
+        self._button_up_pressed = 0  # scroll button readings (PU)
+        self._button_dwn_pressed = 0
+        self.pos_set_scroll_log = 0  # increment or decrement -> scroll log window
+
+        if up_button_pin and down_button_pin:
+            self._up_button = Pin(up_button_pin, Pin.IN, Pin.PULL_UP)
+            self._dwn_button = Pin(down_button_pin, Pin.IN, Pin.PULL_UP)
+        # --------  CONTROL VARS END  --------
 
         # --------  INIT BUS  --------
-
         if self._device == "sh1106_128x64" or self._device == "ssd1306_128x64" or self._device == "ssd1309_128x64":
             self._i2c_scl = Pin(scl)
             self._i2c_sda = Pin(sda)
-
             self._i2c = SoftI2C(scl=self._i2c_scl, sda=self._i2c_sda, freq=self._sck_freq)
             if self.DEBUG:
                 i2c_scan_result = self._i2c.scan()
@@ -96,16 +108,15 @@ class MonoDisplay:
             self._busy = Pin(busy)
             self._epd_slow_mode = epd_slow_mode
             self._tft_colored = tft_colored
-
             self._SPI = SoftSPI(baudrate=self._sck_freq,
                                 polarity=0,
                                 phase=0,
                                 sck=self._sck,
                                 mosi=self._mosi,
                                 miso=self._miso)
+
             if self.DEBUG:
                 print(self.spcr + "init SPI OK")
-
         # --------  INIT BUS END  --------
 
         # --------  INIT DISPLAY & CONSTRUCT SCREEN  --------
@@ -162,8 +173,8 @@ class MonoDisplay:
                     from ST7735_128x128 import TFT
                     self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
                     self._display = TFT(spi=self._SPI, aDC=self._dc, aReset=self._rst, aCS=self._cs)
-                    self._display.initb2()
-                    self._display.rgb(False)
+                    self._display.initr()
+                    self._display.rgb(True)
                     self._display.fill(self._display.BLACK)
                     self._framedata = bytearray(self.W*self.H*2)
                     self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
@@ -198,6 +209,7 @@ class MonoDisplay:
         self._max_line_width = self.W // self._text_size   # chars, font size is fixed 8x8
         self._max_line_number = self.H // self._text_size
         self._page = []
+        self._page_scrollable = []
         self._counter_log_slow_mode = 0
 
         if self.DEBUG:
@@ -205,6 +217,7 @@ class MonoDisplay:
             print(self.spcr + "Line width: {loglinew}".format(loglinew=self._max_line_width))
             print(self.spcr + "Max Lines: {logmaxlines}".format(logmaxlines=self._max_line_number))
             print(self.spcr + "[OK]")
+        # --------  INIT DISPLAY & CONSTRUCT SCREEN END  --------
 
     def get_res(self):
         res = self._devices_dict[self._device][0]
@@ -524,8 +537,10 @@ class MonoDisplay:
         if textalign == "left":
             x_pos = 0
 
+        self.flushframe()  # clear frame
+
         if isinstance(text, str):
-            if self._device == "1in54_epd" and self._epd_slow_mode:
+            if self._device == "1in54_epd" and self._epd_slow_mode:    # dealing with e-paper in slow mode:
                 if len(text) <= self._max_line_width:
                     if len(self._page) >= self._max_line_number:
                         self._page.pop(0)
@@ -562,13 +577,21 @@ class MonoDisplay:
                     if not self._counter_log_slow_mode % 8:
                         self.show()  # show framebuf
 
-            else:
+            else:                                                      # dealing with all the displays in normal mode:
                 if len(text) <= self._max_line_width:
                     if len(self._page) >= self._max_line_number:
                         self._page.pop(0)
                         self._page.append(text)
                     else:
                         self._page.append(text)
+
+                    if self._scrollable_log:
+                        if len(self._page_scrollable) >= self._max_line_number * 8:  # set scrollable len here
+                            self._page_scrollable.pop(0)
+                            self._page_scrollable.append(text)
+                        else:
+                            self._page_scrollable.append(text)
+
                 else:
                     text_a, text_b = text[0:self._max_line_width], text[self._max_line_width::]
                     if len(self._page) >= self._max_line_number:
@@ -580,8 +603,15 @@ class MonoDisplay:
                         self._page.append(text_a)
                         self._page.append(text_b)
 
-                # render page:
-                self.flushframe()  # clear frame
+                    if self._scrollable_log:
+                        if len(self._page_scrollable) >= self._max_line_number * 8:
+                            self._page_scrollable.pop(0)
+                            self._page_scrollable.pop(0)
+                            self._page_scrollable.append(text_a)
+                            self._page_scrollable.append(text_b)
+                        else:
+                            self._page_scrollable.append(text_a)
+                            self._page_scrollable.append(text_b)
 
                 for line in range(len(self._page)):
                     if textalign == "center":
@@ -589,17 +619,130 @@ class MonoDisplay:
                     elif textalign == "right":
                         x_pos = self.W - len(self._page[line]) * self._text_size
                     y_pos = line * self._text_size
-
                     if self._device == "st7735_1in44":
                         if self._tft_colored:
                             self._frame.text(self._page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
                         else:
-                            self._frame.text(self._page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['white'])
-
+                            self._frame.text(self._page[line], x_pos, y_pos, 0xFFFF)
                     else:
                         self._frame.text(self._page[line], x_pos, y_pos, self.COLORED)
 
                 self.show()  # show framebuf line by line
+
+    def show_scrollable_log(self, textalign):
+        while 1:
+            self._button_up_pressed = not self._up_button.value()
+            self._button_dwn_pressed = not self._dwn_button.value()
+
+            if self._button_up_pressed:
+                self.pos_set_scroll_log += 1
+
+            if self._button_dwn_pressed:
+                if self.pos_set_scroll_log > 0:
+                    self.pos_set_scroll_log -= 1
+
+            self.flushframe()  # clear frame
+            # pos_set_scroll_log = 0  # point to the start index then set the end pos from start index -> window
+            active_page_window_start = self.pos_set_scroll_log
+            active_page_window_end = active_page_window_start + self._max_line_number
+
+            if active_page_window_end > len(self._page_scrollable):
+                active_page_window_end = active_page_window_end - (active_page_window_end - len(self._page_scrollable))
+
+            active_window_page = []
+
+            # print("window start: " + str(active_page_window_start) + ", window end: " + str(active_page_window_end))
+            if len(self._page_scrollable) >= self._max_line_number:
+                for index in range(active_page_window_start, active_page_window_end):
+                    # print("page start: " + str(active_page_window_start))
+                    # print("page end: " + str(active_page_window_end))
+                    active_window_page.append(self._page_scrollable[index])  # create window first
+
+            # --------  RENDER SCROLLABLE PAGE  -----------
+            for line in range(len(active_window_page)):
+                if textalign == "center":
+                    x_pos = (self.W // 2) - ((len(active_window_page[line]) * self._text_size) // 2)
+                elif textalign == "right":
+                    x_pos = self.W - len(active_window_page[line]) * self._text_size
+                else:
+                    x_pos = 0
+
+                y_pos = line * self._text_size
+
+                if self._device == "st7735_1in44":
+                    if self._tft_colored:
+                        self._frame.text(active_window_page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
+                    else:
+                        self._frame.text(active_window_page[line], x_pos, y_pos,
+                                         0xFFFF)
+                else:
+                    self._frame.text(active_window_page[line], x_pos, y_pos,
+                                     self.COLORED)
+
+            self.show()
+            # --------  RENDER SCROLLABLE PAGE END  --------
+
+    def log_rtc(self, rtc_datetime):
+        """ prints local or GMT time to screen """
+        now = rtc_datetime  # ->(year, month, day, weekday, hours, minutes, seconds, subseconds)
+        fdate, ftime = "", ""
+        time_zone = "local"
+        timezone_shift = 0
+        hours = 0
+
+        if time_zone == "local":
+            timezone_shift = 0
+
+        if "GMT+" in time_zone:
+            if len(time_zone) == 5:
+                timezone_shift = int(time_zone[4])
+            elif len(time_zone) == 6:
+                timezone_shift = int(time_zone[4::])
+
+        elif "GMT-" in time_zone:
+            if len(time_zone) == 5:
+                timezone_shift = - (int(time_zone[4]))
+            elif len(time_zone) == 6:
+                timezone_shift = - (int(time_zone[4::]))
+
+        else:
+            pass
+
+        year = now[0]
+        month = now[1]
+        day = now[2]
+
+        hours = now[4]
+        minutes = now[5]
+        seconds = now[6]
+
+        if month < 10:
+            month = "0{monthraw}".format(monthraw=month)
+        else:
+            month = now[1]
+
+        if day < 10:
+            day = "0{dayraw}".format(dayraw=day)
+        else:
+            day = now[2]
+
+        if hours < 10:
+            hours = "0{hoursraw}".format(hoursraw=hours + timezone_shift)
+        else:
+            hours = now[4] + timezone_shift
+
+        if minutes < 10:
+            minutes = "0{minutesraw}".format(minutesraw=minutes)
+        else:
+            minutes = now[5]
+
+        fdate = "{year}.{month}.{day}.".format(year=year, month=month, day=day)
+        ftime = "{hours}:{minutes}:{seconds}".format(hours=hours, minutes=minutes, seconds=seconds)
+
+        self.log(text="------------", textalign='right')
+        self.log(text=fdate, textalign='right')
+        self.log(text=ftime, textalign='right')
+        self.log(text="------------", textalign='right')
 
     def progressbar(self, col_pos, row_pos, width, height, state=50, filled=False):
         width = width

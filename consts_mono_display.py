@@ -3,6 +3,7 @@ from st7920 import ST7920_WIDTH, ST7920_HEIGHT
 from epaper1in54_mod import EPD_WIDTH, EPD_HEIGHT
 from ST7735_128x128 import ScreenSize as st7735_ScreenSize
 
+
 display_properties = {"st7920": [[ST7920_WIDTH, ST7920_HEIGHT], 'Generic ST7920'],
                       "nokia_5110": [[PCD8544_WIDTH, PCD8544_HEIGHT], 'PCD8544'],
                       "sh1106_128x64": [[0x80, 0x40], 'Generic SH1106'],
@@ -23,12 +24,12 @@ save_glyph = bytearray(b'\xff\xff\xff\xff\xff\xff\xff\xff\x01\x01\x01\x01\x01\x0
 
 tft_color_theme = {'black': 0x0000,
                    'white': 0xffff,
-                   'trace_color': 0x07e0,
-                   'circle_color': 0xfbc0,
-                   'circle_fill_color': 0x07fa,
-                   'sw_body_color': 0xdebb,
-                   'sw_toggle_bg_color': 0x9cf3,
-                   'sw_toggle_color': 0x8174,
-                   'text_color': 0xff60,
-                   'progbar_border_color': 0xb59b,
-                   'progbar_fill_color': 0x835d}
+                   'trace_color': 0xFBC0,
+                   'circle_color': 0xED86,
+                   'circle_fill_color': 0xFBBF,
+                   'sw_body_color': 0x4950,
+                   'sw_toggle_bg_color': 0xFA20,
+                   'sw_toggle_color': 0x31B3,
+                   'text_color': 0x249F,
+                   'progbar_border_color': 0xA00D,
+                   'progbar_fill_color': 0x9FE7}
