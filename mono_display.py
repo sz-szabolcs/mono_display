@@ -6,7 +6,7 @@ from math import sin, cos, pi
 
 
 # 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
-#               it will show a scrollable window composed from log()'s lines that you can scroll with buttons
+#               it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
 # 2024-07-06: ->log_rtc(rtc_datetime, gmt="local")
 # 2024-06-14: works with boochow's ST7735
 # 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
@@ -630,57 +630,55 @@ class MonoDisplay:
                 self.show()  # show framebuf line by line
 
     def show_scrollable_log(self, textalign):
-        while 1:
-            self._button_up_pressed = not self._up_button.value()
-            self._button_dwn_pressed = not self._dwn_button.value()
+        self._button_up_pressed = not self._up_button.value()
+        self._button_dwn_pressed = not self._dwn_button.value()
 
-            if self._button_up_pressed:
-                self.pos_set_scroll_log += 1
+        if self._button_up_pressed:
+            self.pos_set_scroll_log += 1
+        if self._button_dwn_pressed:
+            if self.pos_set_scroll_log > 0:
+                self.pos_set_scroll_log -= 1
 
-            if self._button_dwn_pressed:
-                if self.pos_set_scroll_log > 0:
-                    self.pos_set_scroll_log -= 1
+        self.flushframe()  # clear frame
 
-            self.flushframe()  # clear frame
-            # pos_set_scroll_log = 0  # point to the start index then set the end pos from start index -> window
-            active_page_window_start = self.pos_set_scroll_log
-            active_page_window_end = active_page_window_start + self._max_line_number
+        # pos_set_scroll_log = 0  # point to the start index then set the end pos from start index -> window
+        active_page_window_start = self.pos_set_scroll_log
+        active_page_window_end = active_page_window_start + self._max_line_number
 
-            if active_page_window_end > len(self._page_scrollable):
-                active_page_window_end = active_page_window_end - (active_page_window_end - len(self._page_scrollable))
+        if active_page_window_end > len(self._page_scrollable):
+            active_page_window_end = active_page_window_end - (active_page_window_end - len(self._page_scrollable))
 
-            active_window_page = []
+        active_window_page = []
 
-            # print("window start: " + str(active_page_window_start) + ", window end: " + str(active_page_window_end))
-            if len(self._page_scrollable) >= self._max_line_number:
-                for index in range(active_page_window_start, active_page_window_end):
-                    # print("page start: " + str(active_page_window_start))
-                    # print("page end: " + str(active_page_window_end))
-                    active_window_page.append(self._page_scrollable[index])  # create window first
+        # print("window start: " + str(active_page_window_start) + ", window end: " + str(active_page_window_end))
+        if len(self._page_scrollable) >= self._max_line_number:
+            for index in range(active_page_window_start, active_page_window_end):
+                # print("page start: " + str(active_page_window_start))
+                # print("page end: " + str(active_page_window_end))
+                active_window_page.append(self._page_scrollable[index])  # create window first
 
-            # --------  RENDER SCROLLABLE PAGE  -----------
-            for line in range(len(active_window_page)):
-                if textalign == "center":
-                    x_pos = (self.W // 2) - ((len(active_window_page[line]) * self._text_size) // 2)
-                elif textalign == "right":
-                    x_pos = self.W - len(active_window_page[line]) * self._text_size
-                else:
-                    x_pos = 0
+        # --------  RENDER SCROLLABLE PAGE  -----------
+        for line in range(len(active_window_page)):
+            if textalign == "center":
+                x_pos = (self.W // 2) - ((len(active_window_page[line]) * self._text_size) // 2)
+            elif textalign == "right":
+                x_pos = self.W - len(active_window_page[line]) * self._text_size
+            else:
+                x_pos = 0
 
-                y_pos = line * self._text_size
+            y_pos = line * self._text_size
 
-                if self._device == "st7735_1in44":
-                    if self._tft_colored:
-                        self._frame.text(active_window_page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
-                    else:
-                        self._frame.text(active_window_page[line], x_pos, y_pos,
-                                         0xFFFF)
+            if self._device == "st7735_1in44":
+                if self._tft_colored:
+                    self._frame.text(active_window_page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
                 else:
                     self._frame.text(active_window_page[line], x_pos, y_pos,
-                                     self.COLORED)
-
-            self.show()
-            # --------  RENDER SCROLLABLE PAGE END  --------
+                                     0xFFFF)
+            else:
+                self._frame.text(active_window_page[line], x_pos, y_pos,
+                                 self.COLORED)
+        self.show()
+        # --------  RENDER SCROLLABLE PAGE END  --------
 
     def log_rtc(self, rtc_datetime):
         """ prints local or GMT time to screen """

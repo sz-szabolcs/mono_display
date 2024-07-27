@@ -109,24 +109,29 @@ wait_time = 1000  # ms
 # test_display(Oled_ssd1309, wait_time)
 # Oled_ssd1309.set_oled_brightness(0)
 #
-# #  --------  SSD1306 OLED, 128x64  --------
-# Oled_ssd1306 = MonoDisplay(sck_freq=400000,
-#                            inverted=False,
-#                            scl=15,
-#                            sda=16,
-#                            device="ssd1306_128x64",
-#                            debug=False)
-#
-# Oled_ssd1306.set_oled_brightness(255)
-# test_display(Oled_ssd1306, wait_time)
+#  --------  SSD1306 OLED, 128x64  --------
+Oled_ssd1306 = MonoDisplay(sck_freq=400000,
+                           inverted=False,
+                           scl=15,
+                           sda=16,
+                           device="ssd1306_128x64",
+                           debug=False,
+                           scrollable_log=True,
+                           up_button_pin=35,
+                           down_button_pin=36)
+
+Oled_ssd1306.set_oled_brightness(255)
+test_display(Oled_ssd1306, wait_time)
 
 # Show Scrollable:
-# for i in range(16):
-#     Oled_ssd1306.log("extra line #" + str(i), 'center')
+for i in range(16):
+    Oled_ssd1306.log("extra line #" + str(i), 'center')
 
-# Oled_ssd1306.show_scrollable_log(textalign='left')
+for i in range(1024):
+    Oled_ssd1306.show_scrollable_log(textalign='left')
 
-# Oled_ssd1306.set_oled_brightness(0)
+Oled_ssd1306.set_oled_brightness(0)
+
 
 # #  --------  84x48 LCD (Nokia 5110 like)  --------
 # Nokia_5110 = MonoDisplay(sck_freq=4000000,
