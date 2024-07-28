@@ -5,6 +5,8 @@ from utime import sleep_ms
 from math import sin, cos, pi
 
 
+# 2024-07-28: add time zone shift to log_rtc-> (gmt='GMT+2'), ->pcd8544_contrast(op_voltage=0x00)
+#             set contrast with operating voltage (0x00~0x7f)
 # 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
 #               it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
 # 2024-07-06: ->log_rtc(rtc_datetime, gmt="local")
@@ -230,6 +232,12 @@ class MonoDisplay:
                            len(self._framedata)]                                   # buf size
 
         return self_parameters
+
+    def pcd8544_contrast(self, op_voltage=0x00):
+        self._display.contrast(contrast=op_voltage)
+        # set contrast with operating voltage (0x00~0x7f)
+        # 0x00 = 3.00V, 0x3f = 6.84V, 0x7f = 10.68V
+        # starting at 3.06V, each bit increments voltage by 0.06V at room temperature
 
     def lcd_backlight(self, value):
         if value > 1023:
@@ -680,11 +688,11 @@ class MonoDisplay:
         self.show()
         # --------  RENDER SCROLLABLE PAGE END  --------
 
-    def log_rtc(self, rtc_datetime):
+    def log_rtc(self, rtc_datetime=None, gmt="local"):
         """ prints local or GMT time to screen """
         now = rtc_datetime  # ->(year, month, day, weekday, hours, minutes, seconds, subseconds)
         fdate, ftime = "", ""
-        time_zone = "local"
+        time_zone = gmt
         timezone_shift = 0
         hours = 0
 

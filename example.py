@@ -17,7 +17,7 @@ def test_display(device, t=0):
 
     rtc = RTC()
     now = rtc.datetime()
-    device.log_rtc(rtc_datetime=now)
+    device.log_rtc(rtc_datetime=now, gmt='local')
 
     sleep_ms(t)
 
@@ -35,7 +35,7 @@ def test_display(device, t=0):
 
     for sw in range(32):
         device.flushframe()
-        device.draw_switch(2, 4, state=0, scale=0.1 * sw)
+        device.draw_switch(32, 2, state=0, scale=0.1 * sw)
         device.show()
 
     sleep_ms(t)
@@ -83,8 +83,8 @@ wait_time = 1000  # ms
 #                       epd_slow_mode=False)
 #
 # test_display(e_paper, wait_time)
-#
-# #  --------  SH1106 OLED, 128x64  --------
+
+#  --------  SH1106 OLED, 128x64  --------
 # Oled_sh1106 = MonoDisplay(sck_freq=400000,
 #                           inverted=False,
 #                           device="sh1106_128x64",
@@ -95,8 +95,8 @@ wait_time = 1000  # ms
 # Oled_sh1106.set_oled_brightness(255)
 # test_display(device=Oled_sh1106, t=wait_time)
 # Oled_sh1106.set_oled_brightness(0)
-#
-# #  --------  SSD1309 OLED, 128x64  --------
+
+#  --------  SSD1309 OLED, 128x64  --------
 # Oled_ssd1309 = MonoDisplay(sck_freq=400000,
 #                            inverted=False,
 #                            device="ssd1309_128x64",
@@ -108,7 +108,7 @@ wait_time = 1000  # ms
 # Oled_ssd1309.set_oled_brightness(255)
 # test_display(Oled_ssd1309, wait_time)
 # Oled_ssd1309.set_oled_brightness(0)
-#
+
 #  --------  SSD1306 OLED, 128x64  --------
 Oled_ssd1306 = MonoDisplay(sck_freq=400000,
                            inverted=False,
@@ -132,24 +132,36 @@ for i in range(1024):
 
 Oled_ssd1306.set_oled_brightness(0)
 
-
-# #  --------  84x48 LCD (Nokia 5110 like)  --------
+#  --------  84x48 LCD (Nokia 5110 like)  --------
 # Nokia_5110 = MonoDisplay(sck_freq=4000000,
 #                          backlight=8,  # ->Pin number, backlight turned ON on init
 #                          mosi=9,
 #                          miso=7,
 #                          sck=10,
 #                          cs=11,
-#                          dc=6,
-#                          rst=5,
+#                          dc=3,
+#                          rst=20,
 #                          inverted=False,
 #                          device="nokia_5110",
-#                          debug=False)
-#
+#                          debug=False,
+#                          scrollable_log=True,
+#                          up_button_pin=35,
+#                          down_button_pin=36)
+
+# Nokia_5110.pcd8544_contrast(op_voltage=0x3f)
+
 # test_display(Nokia_5110, wait_time)
+
+# # Show Scrollable:
+# for i in range(16):
+#     Nokia_5110.log("extra line #" + str(i), 'center')
+
+# for i in range(1024):
+#     Nokia_5110.show_scrollable_log(textalign='left')
+
 # Nokia_5110.lcd_backlight(0)
-#
-# #  --------  ST7920 LCD, 128x64  --------
+
+#  --------  ST7920 LCD, 128x64  --------
 # Lcd_st7920 = MonoDisplay(sck_freq=4000000,
 #                          backlight=3,
 #                          mosi=9,
@@ -166,7 +178,7 @@ Oled_ssd1306.set_oled_brightness(0)
 # test_display(Lcd_st7920, wait_time)
 # Lcd_st7920.lcd_backlight(value=16)
 
-# #  --------  ST7735 TFT LCD, 128x128  --------
+#  --------  ST7735 TFT LCD, 128x128  --------
 # Lcd_st7735 = MonoDisplay(sck_freq=4000000,
 #                          backlight=3,
 #                          mosi=10,
