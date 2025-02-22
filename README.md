@@ -21,7 +21,7 @@
 - render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
 - draw_save_glyph(x, y)
 - progressbar(col_pos, row_pos, width, height, state=50, filled=False)
-- lcd_backlight(0-1024, in case of PCD8544: 0-1)
+- lcd_backlight(value (PWM Duty 0-1024), binary=False, inverted=False)
 - set_oled_brightness(0-255)
 - trace(frequency, phase, amplitude, time_ms, colored)
 - draw_circle(x, y, r, colored, filled)
