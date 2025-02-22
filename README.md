@@ -1,7 +1,7 @@
 # mono_display
 ## This is a primitive class to interface with my favourite monochrome displays with the help of available drivers so with it, I can quickly show stuff on a display in my future projects. [ESP32]
 
-# tested on esp32-s2
+# tested on ESP32S2, ESP32S3R8
 
 ## works with:
   - st7920
@@ -12,9 +12,12 @@
   - sh1106
   - st7735
 
+
 ## methods:
+- draw_rssi(x, y, state=-88, scale=1)
+- draw_battery_state(x, y, charging=False, state=50.0, scale=1)
 - show_scrollable_log(textalign)
-- log_rtc(rtc_datetime, gmt="local")
+- log_rtc(rtc_datetime)
 - render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
 - draw_save_glyph(x, y)
 - progressbar(col_pos, row_pos, width, height, state=50, filled=False)
