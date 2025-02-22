@@ -5,11 +5,16 @@ from utime import sleep_ms
 from math import sin, cos, pi
 
 
-# 2024-07-28: add time zone shift to log_rtc-> (gmt='GMT+2'), ->pcd8544_contrast(op_voltage=0x00)
+# 2025-02-18: ->draw_rssi(x, y, state=-88, scale=1)
+# 2025-01-11: From ESP32S2 moved to ESP32S3R8, should be ok on any ESP32 with the right Pins.
+#             LCD backlight is no longer turn on 512PWM on display init
+#             added binary and inverted parameters to lcd_backlight() (de-init PWM and re-init Pin)
+#             ->draw_battery_state(x, y, charging=False, state=50.0, scale=1)
+# 2024-07-28: ->pcd8544_contrast(op_voltage=0x00)
 #             set contrast with operating voltage (0x00~0x7f)
 # 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
-#               it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
-# 2024-07-06: ->log_rtc(rtc_datetime, gmt="local")
+#             it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
+# 2024-07-06: ->log_rtc(rtc_datetime)
 # 2024-06-14: works with boochow's ST7735
 # 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
 #             an epaper device updates really slowly...
@@ -18,10 +23,8 @@ from math import sin, cos, pi
 # 2024-04-26: ->set_oled_brightness(0-255), ->lcd_backlight(0-1024, in case of PCD8544: 0-1)
 # 2024-04-25: optimization, clean up
 # 2024-04-24: *works with SSD1309 ->*sort-of supported with SH1106 driver
-# 2024-02-09: works with SSD1306
-# 2024-02-09: works with Robert Hammelrath's SH1106
-# 2024-02-02: works with ST7920, 1.54" e-paper
-# 2024-02-02: works with Mike Causer's PCD8544
+# 2024-02-09: works with SSD1306 and Robert Hammelrath's SH1106
+# 2024-02-02: works with Mike Causer's PCD8544, ST7920, 1.54" e-paper
 # 2024-01-28: A simple class for monochrome displays.
 #                                                     ->trace(frequency, phase, amplitude, time_ms, colored),
 #                                                     ->draw_circle(x, y, r, colored, filled),
@@ -72,6 +75,7 @@ class MonoDisplay:
         self._inverted = inverted
         self._sck_freq = sck_freq
         self._device = device.lower()
+        self.backlight = backlight
         self._epd_mem_clear = [0x00, 0xff] * 2  # used only with e-ink device
         self._last_oled_brightness = 0
         self._scrollable_log = scrollable_log
@@ -135,14 +139,13 @@ class MonoDisplay:
                     self._framedata = bytearray(self.W * self.H // 8)
                     self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.MONO_HLSB)
                     self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
-                    self.lcd_backlight(value=511)
 
                 elif self._device == "nokia_5110":
                     from pcd8544 import PCD8544
                     self._display = PCD8544(self._SPI, self._cs, self._dc, self._rst)
                     self._framedata = bytearray((self.H // 8) * self.W)
                     self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.MONO_VLSB)
-                    self.lcd_backlight(value=1)  # turn ON on init, only 1 or 0 because positive gnd
+                    self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
 
                 elif self._device == "sh1106_128x64":
                     import sh1106
@@ -239,36 +242,37 @@ class MonoDisplay:
         # 0x00 = 3.00V, 0x3f = 6.84V, 0x7f = 10.68V
         # starting at 3.06V, each bit increments voltage by 0.06V at room temperature
 
-    def lcd_backlight(self, value):
+    def lcd_backlight(self, value, binary=False, inverted=False):
         if value > 1023:
             value = 1023
 
-        if self._device == "st7920" or self._device == "st7735_1in44":
-            if value < self._lcd_brightness:
-                while value != self._lcd_brightness:
-                    self._lcd_brightness -= 1
-                    if not self._lcd_brightness % 4:
-                        self._lcd_backlight_pwm.duty(self._lcd_brightness)
-                        sleep_ms(8)
-                if self.DEBUG:
-                    print(self.spcr + "LCD brightness decreased to: " + str(self._lcd_brightness))
-            elif value > self._lcd_brightness:
-                while value != self._lcd_brightness:
-                    self._lcd_brightness += 1
-                    if not self._lcd_brightness % 4:
-                        self._lcd_backlight_pwm.duty(self._lcd_brightness)
-                        sleep_ms(8)
-                if self.DEBUG:
-                    print(self.spcr + "LCD brightness increased to: " + str(self._lcd_brightness))
+        if self._device == "st7920" or self._device == "st7735_1in44" or self._device == "nokia_5110":
+            if binary:
+                self._lcd_backlight_pwm.deinit()
+                self._backlightpin = Pin(self.backlight, Pin.OUT)
+                if inverted:
+                    self._backlightpin.value(not value)
+                else:
+                    self._backlightpin.value(value)
             else:
-                return -1
-
-        elif self._device == "nokia_5110":
-            if value:
-                self._backlightpin.value(0)
-            else:
-                self._backlightpin.value(1)
-
+                if value < self._lcd_brightness:
+                    while value != self._lcd_brightness:
+                        self._lcd_brightness -= 1
+                        if not self._lcd_brightness % 4:
+                            self._lcd_backlight_pwm.duty(self._lcd_brightness)
+                            sleep_ms(10)  # was 8
+                    if self.DEBUG:
+                        print(self.spcr + "LCD brightness decreased to: " + str(self._lcd_brightness))
+                elif value > self._lcd_brightness:
+                    while value != self._lcd_brightness:
+                        self._lcd_brightness += 1
+                        if not self._lcd_brightness % 4:
+                            self._lcd_backlight_pwm.duty(self._lcd_brightness)
+                            sleep_ms(10)
+                    if self.DEBUG:
+                        print(self.spcr + "LCD brightness increased to: " + str(self._lcd_brightness))
+                else:
+                    return -1
         else:
             return -1
 
@@ -539,6 +543,146 @@ class MonoDisplay:
                     else:
                         self._frame.text("0", sw_dot_x - self._text_size // 2, bottom_pos + sw_state_bg_height // 2 - self._text_size // 2)
 
+    def draw_battery_state(self, x, y, charging=False, state=50.0, show_voltage=False, voltage=0, scale=1):
+        default_width = 24
+        default_height = default_width // 2
+        default_gap = 2
+
+        battery_body_w = int(default_width * scale) - 1
+        battery_body_h = int(default_height * scale)
+        battery_state_body_w = int(battery_body_w // 5)
+        battery_state_body_h = battery_body_h - default_gap * 2
+
+        gap_states = battery_state_body_w + default_gap // 2 + (scale - 1)
+
+        batt_state_body_25_x = x + default_gap
+        batt_state_body_50_x = batt_state_body_25_x + gap_states
+        batt_state_body_75_x = batt_state_body_50_x + gap_states
+        batt_state_body_100_x = batt_state_body_75_x + gap_states
+        batt_state_fill_bars = [batt_state_body_25_x, batt_state_body_50_x, batt_state_body_75_x, batt_state_body_100_x]
+
+        batt_state_body_y = y + default_gap
+
+        # draw an empty battery by default
+        self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+        self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
+                              scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+
+        if charging:  # draw battery first
+            if 0 < state < 5.0:
+                self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+                self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
+                                      scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+
+            elif 5.0 < state < 25.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)  # fill bars as 4 x 25 %
+
+            elif 25.0 < state < 50.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+
+            elif 50.0 < state < 75.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+
+            elif 75.0 < state < 100.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_100_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+
+            else:
+                pass
+
+            # redraw bars indicating it's charging
+            for i in range(4):
+                self._frame.fill_rect(batt_state_fill_bars[i], batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self.show()
+                sleep_ms(500)
+
+            self._frame.fill_rect(x, y, battery_body_w + 4, battery_body_h, not self.COLORED)  # masking body
+
+        else:
+            if 0 < state < 5.0:
+                self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+                self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
+                                      scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+            elif 5.0 < state < 25.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)  # fill bars as 4 x 25 %
+            elif 25.0 < state < 50.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+            elif 50.0 < state < 75.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+            elif 75.0 < state < 100.0:
+                self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+                self._frame.fill_rect(batt_state_body_100_x, batt_state_body_y, battery_state_body_w,
+                                      battery_state_body_h, 1)
+            else:
+                pass
+
+        if show_voltage:
+            self._frame.fill_rect(x, y + battery_body_h + default_gap * scale, battery_body_w, battery_body_h, 0)  # body
+            self._frame.text(str(voltage), x + int(len(str(voltage)) / 2) * scale, y + battery_body_h + default_gap, self.COLORED)
+
+    def draw_rssi(self, x, y, state=-88, scale=1):
+        default_width = 24
+        default_height = default_width // 2
+        default_gap = 2
+        min_state = -102  # sensitivity in dBm
+        max_state = -40
+        bar_step = 3
+        num_bars_to_draw = 0
+
+        rssi_body_w = int(default_width * scale) - 1
+        rssi_body_h = int(default_height * scale)
+        rssi_state_body_w = int(rssi_body_w // 5)
+        gap_states = rssi_state_body_w + default_gap // 2 + (scale - 1)
+        rssi_state_body_h_25 = (rssi_body_h - ((rssi_body_h // 4) * (default_gap + 1)))
+        rssi_state_body_y_25 = y + (rssi_body_h - rssi_state_body_h_25)  # max bar height
+
+        if state <= min_state:
+            num_bars_to_draw = 1
+        if state >= max_state:
+            num_bars_to_draw = 4
+
+        if min_state < state < -72:
+            num_bars_to_draw = 2
+        elif -72 < state < -60:
+            num_bars_to_draw = 3
+        elif -60 < state < max_state:
+            num_bars_to_draw = 4
+        else:
+            pass
+
+        for i in range(num_bars_to_draw):
+            self._frame.fill_rect(x + gap_states * i, rssi_state_body_y_25 - (i * bar_step * scale), rssi_state_body_w, rssi_state_body_h_25 + (i * bar_step * scale), 1)
+
     def log(self, text, textalign="left"):
         x_pos = 0
 
@@ -647,9 +791,9 @@ class MonoDisplay:
             if self.pos_set_scroll_log > 0:
                 self.pos_set_scroll_log -= 1
 
-        self.flushframe()  # clear frame
+        self.flushframe()  # clear framebuf first
 
-        # pos_set_scroll_log = 0  # point to the start index then set the end pos from start index -> window
+        # pos_set_scroll_log = 0  # point to the start index then set the end pos from start index -> 'window'
         active_page_window_start = self.pos_set_scroll_log
         active_page_window_end = active_page_window_start + self._max_line_number
 
@@ -658,11 +802,8 @@ class MonoDisplay:
 
         active_window_page = []
 
-        # print("window start: " + str(active_page_window_start) + ", window end: " + str(active_page_window_end))
         if len(self._page_scrollable) >= self._max_line_number:
             for index in range(active_page_window_start, active_page_window_end):
-                # print("page start: " + str(active_page_window_start))
-                # print("page end: " + str(active_page_window_end))
                 active_window_page.append(self._page_scrollable[index])  # create window first
 
         # --------  RENDER SCROLLABLE PAGE  -----------
@@ -688,31 +829,10 @@ class MonoDisplay:
         self.show()
         # --------  RENDER SCROLLABLE PAGE END  --------
 
-    def log_rtc(self, rtc_datetime=None, gmt="local"):
-        """ prints local or GMT time to screen """
+    def log_rtc(self, rtc_datetime=None):
+        """ prints local datetime to screen using self.log() """
         now = rtc_datetime  # ->(year, month, day, weekday, hours, minutes, seconds, subseconds)
         fdate, ftime = "", ""
-        time_zone = gmt
-        timezone_shift = 0
-        hours = 0
-
-        if time_zone == "local":
-            timezone_shift = 0
-
-        if "GMT+" in time_zone:
-            if len(time_zone) == 5:
-                timezone_shift = int(time_zone[4])
-            elif len(time_zone) == 6:
-                timezone_shift = int(time_zone[4::])
-
-        elif "GMT-" in time_zone:
-            if len(time_zone) == 5:
-                timezone_shift = - (int(time_zone[4]))
-            elif len(time_zone) == 6:
-                timezone_shift = - (int(time_zone[4::]))
-
-        else:
-            pass
 
         year = now[0]
         month = now[1]
@@ -732,11 +852,6 @@ class MonoDisplay:
         else:
             day = now[2]
 
-        if hours < 10:
-            hours = "0{hoursraw}".format(hoursraw=hours + timezone_shift)
-        else:
-            hours = now[4] + timezone_shift
-
         if minutes < 10:
             minutes = "0{minutesraw}".format(minutesraw=minutes)
         else:
@@ -745,10 +860,10 @@ class MonoDisplay:
         fdate = "{year}.{month}.{day}.".format(year=year, month=month, day=day)
         ftime = "{hours}:{minutes}:{seconds}".format(hours=hours, minutes=minutes, seconds=seconds)
 
-        self.log(text="------------", textalign='right')
+        self.log(text="-" * self._max_line_width, textalign='left')
         self.log(text=fdate, textalign='right')
         self.log(text=ftime, textalign='right')
-        self.log(text="------------", textalign='right')
+        self.log(text="-" * self._max_line_width, textalign='left')
 
     def progressbar(self, col_pos, row_pos, width, height, state=50, filled=False):
         width = width

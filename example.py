@@ -17,7 +17,7 @@ def test_display(device, t=0):
 
     rtc = RTC()
     now = rtc.datetime()
-    device.log_rtc(rtc_datetime=now, gmt='local')
+    device.log_rtc(rtc_datetime=now)
 
     sleep_ms(t)
 
@@ -32,10 +32,39 @@ def test_display(device, t=0):
             pass
 
     sleep_ms(t)
+    device.flushframe()
+    device.draw_rssi(10, 10, state=-106, scale=1)
+    device.show()
+    sleep_ms(t)
+    device.flushframe()
+    device.draw_rssi(10, 10, state=-35, scale=1)
+    device.show()
+    sleep_ms(t)
+    device.flushframe()
+    device.draw_rssi(10, 10, state=-106, scale=2)
+    device.show()
+    sleep_ms(t)
+    device.flushframe()
+    device.draw_rssi(10, 10, state=-35, scale=2)
+    device.show()
+    sleep_ms(t)
+
+    device.flushframe()
+    device.draw_battery_state(x=10, y=10, charging=False, state=12, scale=1)
+    device.show()
+    sleep_ms(t)
+    device.flushframe()
+    device.draw_battery_state(x=10, y=10, charging=True, state=15, scale=1)
+    device.draw_battery_state(x=10, y=10, charging=True, state=15, scale=1)
+    sleep_ms(t)
+    device.flushframe()
+    device.draw_battery_state(x=10, y=10, charging=True, state=55, scale=2)
+    device.draw_battery_state(x=10, y=10, charging=True, state=55, scale=2)
+    sleep_ms(t)
 
     for sw in range(32):
         device.flushframe()
-        device.draw_switch(32, 2, state=0, scale=0.1 * sw)
+        device.draw_switch(8, 4, state=0, scale=0.1 * sw)
         device.show()
 
     sleep_ms(t)
@@ -56,13 +85,13 @@ def test_display(device, t=0):
     sleep_ms(t)
 
     device.flushframe()
-    device.draw_save_glyph(32, 32)
+    device.draw_save_glyph(10, 6)
 
     sleep_ms(t)
 
     device.flushframe()
     device.render_gear(x_pos=device.get_res()[0] // 2, y_pos=device.get_res()[1] // 2, len_in_frames=60, obj_r=16,
-                       points=2, points_r=8, wait=10)
+                       points=8, points_r=4, wait=10)
 
 
 wait_time = 1000  # ms
@@ -110,56 +139,63 @@ wait_time = 1000  # ms
 # Oled_ssd1309.set_oled_brightness(0)
 
 #  --------  SSD1306 OLED, 128x64  --------
-Oled_ssd1306 = MonoDisplay(sck_freq=400000,
-                           inverted=False,
-                           scl=15,
-                           sda=16,
-                           device="ssd1306_128x64",
-                           debug=False,
-                           scrollable_log=True,
-                           up_button_pin=35,
-                           down_button_pin=36)
-
-Oled_ssd1306.set_oled_brightness(255)
-test_display(Oled_ssd1306, wait_time)
-
-# Show Scrollable:
-for i in range(16):
-    Oled_ssd1306.log("extra line #" + str(i), 'center')
-
-for i in range(1024):
-    Oled_ssd1306.show_scrollable_log(textalign='left')
-
-Oled_ssd1306.set_oled_brightness(0)
-
-#  --------  84x48 LCD (Nokia 5110 like)  --------
-# Nokia_5110 = MonoDisplay(sck_freq=4000000,
-#                          backlight=8,  # ->Pin number, backlight turned ON on init
-#                          mosi=9,
-#                          miso=7,
-#                          sck=10,
-#                          cs=11,
-#                          dc=3,
-#                          rst=20,
-#                          inverted=False,
-#                          device="nokia_5110",
-#                          debug=False,
-#                          scrollable_log=True,
-#                          up_button_pin=35,
-#                          down_button_pin=36)
-
-# Nokia_5110.pcd8544_contrast(op_voltage=0x3f)
-
-# test_display(Nokia_5110, wait_time)
-
+# Oled_ssd1306 = MonoDisplay(sck_freq=400000,
+#                            inverted=False,
+#                            scl=15,
+#                            sda=16,
+#                            device="ssd1306_128x64",
+#                            debug=False,
+#                            scrollable_log=True,
+#                            up_button_pin=35,
+#                            down_button_pin=36)
+#
+# Oled_ssd1306.set_oled_brightness(255)
+# test_display(Oled_ssd1306, wait_time)
+#
 # # Show Scrollable:
 # for i in range(16):
-#     Nokia_5110.log("extra line #" + str(i), 'center')
-
+#     Oled_ssd1306.log("extra line #" + str(i), 'center')
+#
 # for i in range(1024):
-#     Nokia_5110.show_scrollable_log(textalign='left')
+#     Oled_ssd1306.show_scrollable_log(textalign='left')
+#
+# Oled_ssd1306.set_oled_brightness(0)
 
-# Nokia_5110.lcd_backlight(0)
+#  --------  84x48 LCD (Nokia 5110 like)  --------
+Nokia_5110 = MonoDisplay(sck_freq=2000000,
+                         backlight=38,
+                         mosi=11,
+                         miso=0,
+                         sck=16,
+                         cs=10,
+                         dc=47,
+                         rst=7,
+                         inverted=False,
+                         device="nokia_5110",
+                         debug=False,
+                         scrollable_log=True,
+                         up_button_pin=42,
+                         down_button_pin=46)
+
+Nokia_5110.pcd8544_contrast(op_voltage=0x3f)
+
+Nokia_5110.lcd_backlight(value=1024, binary=False, inverted=False)
+
+# not using PWM BL:
+# Nokia_5110.lcd_backlight(value=1, binary=True, inverted=False)
+# sleep_ms(1000)
+# Nokia_5110.lcd_backlight(value=0, binary=True, inverted=False)
+
+test_display(Nokia_5110, wait_time)
+
+# Show Scrollable:
+for i in range(32):
+    Nokia_5110.log("scroll line @" + str(i), 'center')
+
+for i in range(1024):
+    Nokia_5110.show_scrollable_log(textalign='left')
+
+Nokia_5110.lcd_backlight(value=0, binary=False, inverted=False)
 
 #  --------  ST7920 LCD, 128x64  --------
 # Lcd_st7920 = MonoDisplay(sck_freq=4000000,
