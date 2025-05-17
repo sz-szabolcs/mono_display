@@ -8,6 +8,7 @@ def test_display(device, t=0):
     # clear()
     # refresh_epaper()
     # rotate(90)
+
     device.log("", 'left')
     device.log(device.get_par()[2], 'left')  # name of screen driver chip
     device.log(device.get_par()[1], 'left')  # resolution
@@ -19,6 +20,13 @@ def test_display(device, t=0):
     now = rtc.datetime()
     device.log_rtc(rtc_datetime=now)
 
+    sleep_ms(t)
+
+    device.draw_str(x=1, y=4, text="draw_str blit", blit=True)
+    device.show()
+    sleep_ms(t)
+    device.draw_str(x=1, y=16, text="draw_str not blit", blit=False)
+    device.show()
     sleep_ms(t)
 
     for align in range(16):
@@ -33,38 +41,29 @@ def test_display(device, t=0):
 
     sleep_ms(t)
     device.flushframe()
+    device.draw_circle(24, 24, radius=6, colored=True, filled=False)
     device.draw_rssi(10, 10, state=-106, scale=1)
     device.show()
     sleep_ms(t)
     device.flushframe()
-    device.draw_rssi(10, 10, state=-35, scale=1)
-    device.show()
-    sleep_ms(t)
-    device.flushframe()
-    device.draw_rssi(10, 10, state=-106, scale=2)
-    device.show()
-    sleep_ms(t)
-    device.flushframe()
-    device.draw_rssi(10, 10, state=-35, scale=2)
+    device.draw_rssi(56, 56, state=-35, scale=2)
     device.show()
     sleep_ms(t)
 
     device.flushframe()
-    device.draw_battery_state(x=10, y=10, charging=False, state=12, scale=1)
+    device.draw_battery_state(x=56, y=56, charging=False, state=12, scale=1)
     device.show()
     sleep_ms(t)
+
     device.flushframe()
-    device.draw_battery_state(x=10, y=10, charging=True, state=15, scale=1)
-    device.draw_battery_state(x=10, y=10, charging=True, state=15, scale=1)
-    sleep_ms(t)
-    device.flushframe()
-    device.draw_battery_state(x=10, y=10, charging=True, state=55, scale=2)
-    device.draw_battery_state(x=10, y=10, charging=True, state=55, scale=2)
+    device.draw_battery_state(x=56, y=56, charging=True, state=8, scale=2)
+    device.draw_battery_state(x=56, y=56, charging=True, state=20, scale=2)
     sleep_ms(t)
 
     for sw in range(32):
         device.flushframe()
-        device.draw_switch(8, 4, state=0, scale=0.1 * sw)
+        device.draw_switch(2, 2 + sw * 2, state=0, scale=0.2 * sw)
+        sleep_ms(25)
         device.show()
 
     sleep_ms(t)
@@ -73,28 +72,28 @@ def test_display(device, t=0):
 
     for trace in range(10):
         device.flushframe()
-        device.trace(frequency=trace + 1, phase=trace / 2, amplitude=trace, time_ms=1000, colored=1)
+        device.trace(frequency=trace + 1, phase=trace / 2, amplitude=trace / 2, time_ms=600)
         device.show()
 
     sleep_ms(t)
 
     device.flushframe()
-    device.progressbar(col_pos=2, row_pos=2, width=40, height=8, state=65, filled=True)
-    device.progressbar(col_pos=2, row_pos=4, width=75, height=12, state=95, filled=False)
+    device.progressbar(col_pos=2, row_pos=8, width=40, height=8, state=65, filled=True)
+    device.progressbar(col_pos=2, row_pos=8, width=75, height=12, state=95, filled=False)
 
     sleep_ms(t)
 
     device.flushframe()
-    device.draw_save_glyph(10, 6)
+    device.draw_save_glyph(56, 56)
 
     sleep_ms(t)
 
     device.flushframe()
     device.render_gear(x_pos=device.get_res()[0] // 2, y_pos=device.get_res()[1] // 2, len_in_frames=60, obj_r=16,
-                       points=8, points_r=4, wait=10)
+                       points=3, points_r=4, wait=4)
 
 
-wait_time = 1000  # ms
+wait_time = 2000  # ms
 
 
 #  --------  1.54" e-paper, 200x200  -------
@@ -162,72 +161,88 @@ wait_time = 1000  # ms
 # Oled_ssd1306.set_oled_brightness(0)
 
 #  --------  84x48 LCD (Nokia 5110 like)  --------
-Nokia_5110 = MonoDisplay(sck_freq=2000000,
-                         backlight=38,
-                         mosi=11,
-                         miso=0,
-                         sck=16,
-                         cs=10,
-                         dc=47,
-                         rst=7,
-                         inverted=False,
-                         device="nokia_5110",
-                         debug=False,
-                         scrollable_log=True,
-                         up_button_pin=42,
-                         down_button_pin=46)
+# Nokia_5110 = MonoDisplay(sck_freq=2000000,
+#                          backlight=38,
+#                          mosi=11,
+#                          miso=0,
+#                          sck=16,
+#                          cs=10,
+#                          dc=47,
+#                          rst=7,
+#                          inverted=False,
+#                          device="nokia_5110",
+#                          debug=False,
+#                          scrollable_log=True,
+#                          up_button_pin=42,
+#                          down_button_pin=46)
 
-Nokia_5110.pcd8544_contrast(op_voltage=0x3f)
+# Nokia_5110.pcd8544_contrast(op_voltage=0x3f)
 
-Nokia_5110.lcd_backlight(value=1024, binary=False, inverted=False)
+# Nokia_5110.lcd_backlight(value=1024, binary=False, inverted=False)
 
 # not using PWM BL:
 # Nokia_5110.lcd_backlight(value=1, binary=True, inverted=False)
 # sleep_ms(1000)
 # Nokia_5110.lcd_backlight(value=0, binary=True, inverted=False)
 
-test_display(Nokia_5110, wait_time)
+# test_display(Nokia_5110, wait_time)
 
 # Show Scrollable:
-for i in range(32):
-    Nokia_5110.log("scroll line @" + str(i), 'center')
-
-for i in range(1024):
-    Nokia_5110.show_scrollable_log(textalign='left')
-
-Nokia_5110.lcd_backlight(value=0, binary=False, inverted=False)
+# for i in range(32):
+#     Nokia_5110.log("scroll line @" + str(i), 'center')
+# for i in range(1024):
+#     Nokia_5110.show_scrollable_log(textalign='left')
+#
+# Nokia_5110.lcd_backlight(value=0, binary=False, inverted=False)
 
 #  --------  ST7920 LCD, 128x64  --------
-# Lcd_st7920 = MonoDisplay(sck_freq=4000000,
+# Lcd_st7920 = MonoDisplay(sck_freq=150000,
 #                          backlight=3,
-#                          mosi=9,
-#                          miso=7,
-#                          sck=10,
-#                          cs=4,
-#                          dc=6,
-#                          rst=5,
+#                          mosi=8,
+#                          miso=0,
+#                          sck=9,
+#                          cs=41,
+#                          dc=40,
+#                          rst=21,
 #                          inverted=False,
 #                          device="st7920",
-#                          debug=False)
+#                          debug=True)
 #
-# Lcd_st7920.lcd_backlight(value=1024)
+# Lcd_st7920.lcd_backlight(value=1024, binary=False, inverted=False)
 # test_display(Lcd_st7920, wait_time)
 # Lcd_st7920.lcd_backlight(value=16)
 
 #  --------  ST7735 TFT LCD, 128x128  --------
-# Lcd_st7735 = MonoDisplay(sck_freq=4000000,
+# Lcd_st7735 = MonoDisplay(sck_freq=200000,
 #                          backlight=3,
-#                          mosi=10,
-#                          miso=45,
+#                          mosi=8,
+#                          miso=0,
 #                          sck=9,
-#                          cs=11,
-#                          dc=8,
-#                          rst=7,
+#                          cs=41,
+#                          dc=40,
+#                          rst=21,
 #                          inverted=False,
 #                          device="st7735_1in44",
 #                          tft_colored=False,
 #                          debug=True)
-#
 # Lcd_st7735.lcd_backlight(value=1024)
 # test_display(Lcd_st7735, wait_time)
 # Lcd_st7735.lcd_backlight(value=16)
+
+#  --------  Round TFT, 240x240  --------
+round_gc = MonoDisplay(sck_freq=4000000,
+                       backlight=3,
+                       mosi=8,
+                       miso=0,
+                       sck=9,
+                       cs=41,
+                       dc=40,
+                       rst=21,
+                       inverted=False,
+                       device="gc9a01",
+                       tft_colored=False,
+                       debug=True)
+
+round_gc.lcd_backlight(value=1024)
+test_display(round_gc, wait_time)
+round_gc.lcd_backlight(value=16)
