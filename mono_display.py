@@ -5,47 +5,53 @@ from utime import sleep_ms
 from math import sin, cos, pi
 
 
-# 2025-02-18: ->draw_rssi(x, y, state=-88, scale=1)
-# 2025-01-11: From ESP32S2 moved to ESP32S3R8, should be ok on any ESP32 with the right Pins.
-#             LCD backlight is no longer turn on 512PWM on display init
-#             added binary and inverted parameters to lcd_backlight() (de-init PWM and re-init Pin)
-#             ->draw_battery_state(x, y, charging=False, state=50.0, scale=1)
-# 2024-07-28: ->pcd8544_contrast(op_voltage=0x00)
-#             set contrast with operating voltage (0x00~0x7f)
-# 2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
-#             it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
-# 2024-07-06: ->log_rtc(rtc_datetime)
-# 2024-06-14: works with boochow's ST7735
-# 2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
-#             an epaper device updates really slowly...
-# 2024-05-03: ->draw_save_glyph(x, y), ->render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
-# 2024-04-27: ->progressbar(col_pos, row_pos, width, height, state=50, filled=False),
-# 2024-04-26: ->set_oled_brightness(0-255), ->lcd_backlight(0-1024, in case of PCD8544: 0-1)
-# 2024-04-25: optimization, clean up
-# 2024-04-24: *works with SSD1309 ->*sort-of supported with SH1106 driver
-# 2024-02-09: works with SSD1306 and Robert Hammelrath's SH1106
-# 2024-02-02: works with Mike Causer's PCD8544, ST7920, 1.54" e-paper
-# 2024-01-28: A simple class for monochrome displays.
-#                                                     ->trace(frequency, phase, amplitude, time_ms, colored),
-#                                                     ->draw_circle(x, y, r, colored, filled),
-#                                                     ->draw_switch(x, y, state, scale),
-#                                                     ->log(text, textalign)
-#
+"""
+
+2025-04-20: works with GC9A01 round TFT (really slowly)
+2025-04-11: ->draw_str(x, y, text="n/a", blit=False), partly fixed drawing errors when screen is inverted, inverted
+            mode is not implemented for st7735
+2025-02-18: ->draw_rssi(x, y, state=-88, scale=1)
+2025-01-11: From ESP32S2 moved to ESP32S3R8, should be ok on any ESP32 with the right Pins.
+            LCD backlight is no longer turn on 512PWM on display init
+            added binary and inverted parameters to lcd_backlight() (de-init PWM and re-init Pin)
+            ->draw_battery_state(x, y, charging=False, state=50.0, scale=1)
+2024-07-28: ->pcd8544_contrast(op_voltage=0x00)
+            set contrast with operating voltage (0x00~0x7f)
+2024-07-24: ->show_scrollable_log(textalign) -> if scrollable_log parameter is True and this method is called,
+            it will show a scrollable window composed from log()'s lines that you can scroll with buttons in a loop
+2024-07-06: ->log_rtc(rtc_datetime)
+2024-06-14: works with boochow's ST7735
+2024-05-25: slow mode in log() draws 4 lines of text at a time to save time when
+            an epaper device updates really slowly...
+2024-05-03: ->draw_save_glyph(x, y), ->render_gear(x_pos, y_pos, len_in_frames, obj_r, points, points_r, wait)
+2024-04-27: ->progressbar(col_pos, row_pos, width, height, state=50, filled=False),
+2024-04-26: ->set_oled_brightness(0-255), ->lcd_backlight(0-1024, in case of PCD8544: 0-1)
+2024-04-25: optimization, clean up
+2024-04-24: *works with SSD1309 ->*sort-of supported with SH1106 driver
+2024-02-09: works with SSD1306 and Robert Hammelrath's SH1106
+2024-02-02: works with Mike Causer's PCD8544, ST7920, 1.54" e-paper
+2024-01-28: A simple class for monochrome displays.
+            ->trace(frequency, phase, amplitude, time_ms, colored),
+            ->draw_circle(x, y, r, colored, filled),
+            ->draw_switch(x, y, state, scale),
+            ->log(text, textalign)
 
 
-# ST7920:
-# --------  ST7920 128X64B V2.X PIN  --------  BUS Pin  --------
-#                   GND                  |        GND
-#                   VCC                  |        5V
-#                   V0                   |        ADJ. CONTRAST
-#                   RS                   |        CS
-#                   R/W                  |        MOSI
-#                   E (En)               |        SCK
-#                   RST                  |        RESET
-#                   BL A                 |        LED VCC
-#                   BL K                 |        LED VSS
-# connect LCD PSB with LCD GND
-# connect LCD RS with LCD RST
+ST7920:
+--------  ST7920 128X64B V2.X PIN  --------  BUS Pin  --------
+                  GND                  |        GND
+                  VCC                  |        5V
+                  V0                   |        ADJ. CONTRAST
+                  RS                   |        CS
+                  R/W                  |        MOSI
+                  E (En)               |        SCK
+                  RST                  |        RESET
+                  BL A                 |        LED VCC
+                  BL K                 |        LED VSS
+connect LCD PSB with LCD GND
+connect LCD RS with LCD RST
+
+"""
 
 
 class MonoDisplay:
@@ -105,13 +111,13 @@ class MonoDisplay:
 
         else:
             self._backlightpin = Pin(backlight, Pin.OUT)
-            self._mosi = Pin(mosi)
-            self._miso = Pin(miso)
-            self._sck = Pin(sck)
-            self._cs = Pin(cs)
-            self._dc = Pin(dc)
-            self._rst = Pin(rst)
-            self._busy = Pin(busy)
+            self._mosi = Pin(mosi, Pin.OUT)
+            self._miso = Pin(miso, Pin.IN)
+            self._sck = Pin(sck, Pin.OUT)
+            self._cs = Pin(cs, Pin.OUT)
+            self._dc = Pin(dc, Pin.OUT)
+            self._rst = Pin(rst, Pin.OUT)
+            self._busy = Pin(busy, Pin.OUT)
             self._epd_slow_mode = epd_slow_mode
             self._tft_colored = tft_colored
             self._SPI = SoftSPI(baudrate=self._sck_freq,
@@ -126,6 +132,18 @@ class MonoDisplay:
         # --------  INIT BUS END  --------
 
         # --------  INIT DISPLAY & CONSTRUCT SCREEN  --------
+        # COLORED and UNCOLORED gets it's hex value on init if display is a color display
+        if self._device == "1in54_epd":
+            if self._inverted:
+                self.COLORED, self.UNCOLORED = 1, 0
+            else:
+                self.COLORED, self.UNCOLORED = 0, 1
+        else:
+            if self._inverted:
+                self.COLORED, self.UNCOLORED = 0, 1
+            else:
+                self.COLORED, self.UNCOLORED = 1, 0
+
         if isinstance(self._device, str):
             self._oled_brightness = 0
             self._lcd_brightness = 0
@@ -178,12 +196,39 @@ class MonoDisplay:
                     from ST7735_128x128 import TFT
                     self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
                     self._display = TFT(spi=self._SPI, aDC=self._dc, aReset=self._rst, aCS=self._cs)
-                    self._display.initr()
+                    self._display.initb2()  # initb, initb2, initg, initr
                     self._display.rgb(True)
-                    self._display.fill(self._display.BLACK)
+
+                    if self._inverted:
+                        self.COLORED, self.UNCOLORED = self._display.BLACK, self._display.WHITE
+                    else:
+                        self.COLORED, self.UNCOLORED = self._display.WHITE, self._display.BLACK
+
                     self._framedata = bytearray(self.W*self.H*2)
-                    self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
+
+                    if self._tft_colored:
+                        self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
+                    else:
+                        self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
+
                     self._display._setwindowloc((0, 0), (self.W - 1, self.H - 1))
+                    self._display.fill(self.UNCOLORED)
+
+                elif self._device == "gc9a01":
+                    import gc9a01py
+                    self._lcd_backlight_pwm = PWM(self._backlightpin, freq=2000)
+                    self._display = gc9a01py.GC9A01(spi=self._SPI, dc=self._dc, cs=self._cs, reset=self._rst, backlight=self._backlightpin, rotation=0)
+
+                    if self._inverted:
+                        self.COLORED, self.UNCOLORED = gc9a01py.BLACK, gc9a01py.WHITE
+                    else:
+                        self.COLORED, self.UNCOLORED = gc9a01py.WHITE, gc9a01py.BLACK
+
+                    self._framedata = bytearray(self.W * self.H * 2)
+                    # self._frame = self._display  # doing this causes gc9a01 lib do its own framebuf handling
+                    self._frame = framebuf.FrameBuffer(self._framedata, self.W, self.H, framebuf.RGB565)
+                    self._display.fill(self.UNCOLORED)
+
                 else:
                     pass
 
@@ -198,17 +243,6 @@ class MonoDisplay:
         else:
             print(self.spcr + "device must be a string")
             pass
-
-        if self._device == "1in54_epd":
-            if self._inverted:
-                self.COLORED, self.UNCOLORED = 1, 0
-            else:
-                self.COLORED, self.UNCOLORED = 0, 1
-        else:
-            if self._inverted:
-                self.COLORED, self.UNCOLORED = 0, 1
-            else:
-                self.COLORED, self.UNCOLORED = 1, 0
 
         self._text_size = 8  # currently, we cannot change font size, which is 8 by 8 in mpy framebuf
         self._max_line_width = self.W // self._text_size   # chars, font size is fixed 8x8
@@ -334,6 +368,8 @@ class MonoDisplay:
             self._display.display_frame()
         elif self._device == "st7735_1in44":
             self._display._writedata(self._framedata)
+        elif self._device == "gc9a01":
+            self._display._write(None, self._framedata)
         else:
             return -1
 
@@ -343,7 +379,7 @@ class MonoDisplay:
             self._display.clear_frame_memory(i)
             self._display.display_frame()
 
-    def trace(self, frequency=1, phase=0, amplitude=10, time_ms=1000, colored=1):
+    def trace(self, frequency=1, phase=0, amplitude=10, time_ms=1000):
         scale_offset = 20
         curve = []  # storing coords
         step = (self.W - scale_offset) / time_ms  # scale x represents n secs
@@ -352,9 +388,9 @@ class MonoDisplay:
             x = 10 + t * step
             y = self.H / 2 + diversion * self.H / scale_offset
             curve.append((x, y))
-        color = colored
+        color = self.COLORED
         if self._device == "1in54_epd":
-            color ^= 1
+            color ^= self.COLORED
 
         for pixel in curve:
             if self._device == "st7735_1in44":
@@ -374,7 +410,7 @@ class MonoDisplay:
             return
         while True:
             if colored:
-                if self._device == "st7735_1in44":
+                if self._device == "st7735_1in44" or self._device == "gc9a01":
                     if self._tft_colored:
                         self._frame.pixel(x - x_pos, y + y_pos, consts_mono_display.tft_color_theme['circle_color'])
                         self._frame.pixel(x + x_pos, y + y_pos, consts_mono_display.tft_color_theme['circle_color'])
@@ -399,7 +435,7 @@ class MonoDisplay:
                 self._frame.pixel(x - x_pos, y - y_pos, self.UNCOLORED)
 
             if filled:
-                if self._device == "st7735_1in44":
+                if self._device == "st7735_1in44" or self._device == "gc9a01":
                     if self._tft_colored:
                         self._frame.hline(x + x_pos, y + y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['circle_fill_color'])
                         self._frame.hline(x + x_pos, y - y_pos, 2 * (-x_pos) + 1, consts_mono_display.tft_color_theme['circle_fill_color'])
@@ -439,14 +475,20 @@ class MonoDisplay:
         if self._device == "1in54_epd":
             if state:
                 self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
-                self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height,
-                                      self.UNCOLORED)
-                if scale <= 0.8:
-                    self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, self.COLORED)
-                    self._frame.pixel(sw_dot_x, sw_dot_y - 1, self.COLORED)
+                self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
+                if self._inverted:
+                    if scale <= 0.8:
+                        self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, not self.COLORED)
+                        self._frame.pixel(sw_dot_x, sw_dot_y - 1, not self.COLORED)
+                    else:
+                        self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2, not self.COLORED)
                 else:
-                    self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2, self.COLORED)
+                    if scale <= 0.8:
 
+                        self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, self.COLORED)
+                        self._frame.pixel(sw_dot_x, sw_dot_y - 1, self.COLORED)
+                    else:
+                        self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2, self.COLORED)
             else:
                 bottom_pos = (y + sw_body_height - sw_state_bg_height) - gap // 2
                 self._frame.fill_rect(x, y, sw_body_width, sw_body_height, self.COLORED)
@@ -461,7 +503,7 @@ class MonoDisplay:
 
         else:
             if state:
-                if self._device == "st7735_1in44":
+                if self._device == "st7735_1in44" or self._device == "gc9a01":
                     if self._tft_colored:
                         self._frame.fill_rect(x, y, sw_body_width, sw_body_height,
                                               consts_mono_display.tft_color_theme['sw_body_color'])
@@ -477,7 +519,7 @@ class MonoDisplay:
                     self._frame.fill_rect(sw_state_bg_x, sw_state_bg_y, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
 
                 if scale <= 0.8:
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1,
                                               consts_mono_display.tft_color_theme['sw_toggle_color'])
@@ -493,7 +535,7 @@ class MonoDisplay:
                         self._frame.pixel(sw_dot_x - 1, sw_dot_y - 1, 1)
                         self._frame.pixel(sw_dot_x, sw_dot_y - 1, 1)
                 else:
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.text("I", sw_dot_x - self._text_size // 2, sw_dot_y - self._text_size // 2,
                                              consts_mono_display.tft_color_theme['sw_toggle_color'])
@@ -505,7 +547,7 @@ class MonoDisplay:
 
             else:
                 bottom_pos = (y + sw_body_height - sw_state_bg_height) - gap // 2
-                if self._device == "st7735_1in44":
+                if self._device == "st7735_1in44" or self._device == "gc9a01":
                     if self._tft_colored:
                         self._frame.fill_rect(x, y, sw_body_width, sw_body_height, consts_mono_display.tft_color_theme['sw_body_color'])
                         self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height, consts_mono_display.tft_color_theme['sw_toggle_bg_color'])
@@ -519,7 +561,7 @@ class MonoDisplay:
                     self._frame.fill_rect(sw_state_bg_x, bottom_pos, sw_state_bg_width, sw_state_bg_height, self.UNCOLORED)
 
                 if scale <= 0.8:
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
                             self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
@@ -533,7 +575,7 @@ class MonoDisplay:
                         self._frame.pixel(sw_dot_x - 1, bottom_pos + sw_state_bg_height // 2, 1)
                         self._frame.pixel(sw_dot_x, bottom_pos + sw_state_bg_height // 2, 1)
                 else:
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.text("0", sw_dot_x - self._text_size // 2, bottom_pos + sw_state_bg_height // 2 - self._text_size // 2, consts_mono_display.tft_color_theme['sw_toggle_color'])
                         else:
@@ -563,44 +605,53 @@ class MonoDisplay:
 
         batt_state_body_y = y + default_gap
 
+        if self._device == "st7735_1in44" or self._device == "gc9a01":
+            if self._tft_colored:
+                batt_body_color = consts_mono_display.tft_color_theme['battery_border_color']
+                batt_fill_color = consts_mono_display.tft_color_theme['battery_fill_color']
+            else:
+                batt_body_color, batt_fill_color = self.COLORED, self.COLORED
+        else:
+            batt_body_color, batt_fill_color = self.COLORED, self.COLORED
+
         # draw an empty battery by default
-        self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+        self._frame.rect(x, y, battery_body_w, battery_body_h, batt_body_color)  # body
         self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
-                              scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+                              scale + 1, battery_body_h - (battery_body_h // 2), batt_body_color)  # positive end nibble
 
         if charging:  # draw battery first
             if 0 < state < 5.0:
-                self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+                self._frame.rect(x, y, battery_body_w, battery_body_h, batt_body_color)  # body
                 self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
-                                      scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+                                      scale + 1, battery_body_h - (battery_body_h // 2), batt_body_color)  # positive end nibble
 
             elif 5.0 < state < 25.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)  # fill bars as 4 x 25 %
+                                      battery_state_body_h, batt_fill_color)  # fill bars as 4 x 25 %
 
             elif 25.0 < state < 50.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
 
             elif 50.0 < state < 75.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
 
             elif 75.0 < state < 100.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_100_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
 
             else:
                 pass
@@ -608,47 +659,54 @@ class MonoDisplay:
             # redraw bars indicating it's charging
             for i in range(4):
                 self._frame.fill_rect(batt_state_fill_bars[i], batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
-                self.show()
-                sleep_ms(500)
+                                      battery_state_body_h, batt_fill_color)
 
-            self._frame.fill_rect(x, y, battery_body_w + 4, battery_body_h, not self.COLORED)  # masking body
+                sleep_ms(500)
+                if show_voltage:
+                    self._frame.fill_rect(x, y + battery_body_h + default_gap * scale, battery_body_w, battery_body_h,
+                                          self.UNCOLORED)  # body
+                    self._frame.text(str(voltage), x + int(len(str(voltage)) / 2) * scale,
+                                     y + battery_body_h + default_gap, batt_body_color)
+
+                self.show()
+
+            self._frame.fill_rect(x, y, battery_body_w + 4, battery_body_h, not batt_body_color)  # masking body
 
         else:
             if 0 < state < 5.0:
-                self._frame.rect(x, y, battery_body_w, battery_body_h, 1)  # body
+                self._frame.rect(x, y, battery_body_w, battery_body_h, batt_body_color)  # body
                 self._frame.fill_rect(x + battery_body_w, y + ((battery_body_h // 2) - (battery_body_h // 4)),
-                                      scale + 1, battery_body_h - (battery_body_h // 2), 1)  # positive end nibble
+                                      scale + 1, battery_body_h - (battery_body_h // 2), batt_body_color)  # positive end nibble
             elif 5.0 < state < 25.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)  # fill bars as 4 x 25 %
+                                      battery_state_body_h, batt_fill_color)  # fill bars as 4 x 25 %
             elif 25.0 < state < 50.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
             elif 50.0 < state < 75.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
             elif 75.0 < state < 100.0:
                 self._frame.fill_rect(batt_state_body_25_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_50_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_75_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
                 self._frame.fill_rect(batt_state_body_100_x, batt_state_body_y, battery_state_body_w,
-                                      battery_state_body_h, 1)
+                                      battery_state_body_h, batt_fill_color)
             else:
                 pass
 
         if show_voltage:
-            self._frame.fill_rect(x, y + battery_body_h + default_gap * scale, battery_body_w, battery_body_h, 0)  # body
-            self._frame.text(str(voltage), x + int(len(str(voltage)) / 2) * scale, y + battery_body_h + default_gap, self.COLORED)
+            self._frame.fill_rect(x, y + battery_body_h + default_gap * scale, battery_body_w, battery_body_h, self.UNCOLORED)  # body
+            self._frame.text(str(voltage), x + int(len(str(voltage)) / 2) * scale, y + battery_body_h + default_gap, batt_body_color)
 
     def draw_rssi(self, x, y, state=-88, scale=1):
         default_width = 24
@@ -658,6 +716,14 @@ class MonoDisplay:
         max_state = -40
         bar_step = 3
         num_bars_to_draw = 0
+
+        if self._device == "st7735_1in44" or self._device == "gc9a01":
+            if self._tft_colored:
+                rssi_color = consts_mono_display.tft_color_theme['wifi_rssi_color']
+            else:
+                rssi_color = self.COLORED
+        else:
+            rssi_color = self.COLORED
 
         rssi_body_w = int(default_width * scale) - 1
         rssi_body_h = int(default_height * scale)
@@ -681,7 +747,7 @@ class MonoDisplay:
             pass
 
         for i in range(num_bars_to_draw):
-            self._frame.fill_rect(x + gap_states * i, rssi_state_body_y_25 - (i * bar_step * scale), rssi_state_body_w, rssi_state_body_h_25 + (i * bar_step * scale), 1)
+            self._frame.fill_rect(x + gap_states * i, rssi_state_body_y_25 - (i * bar_step * scale), rssi_state_body_w, rssi_state_body_h_25 + (i * bar_step * scale), rssi_color)
 
     def log(self, text, textalign="left"):
         x_pos = 0
@@ -771,11 +837,12 @@ class MonoDisplay:
                     elif textalign == "right":
                         x_pos = self.W - len(self._page[line]) * self._text_size
                     y_pos = line * self._text_size
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.text(self._page[line], x_pos, y_pos, consts_mono_display.tft_color_theme['text_color'])
                         else:
-                            self._frame.text(self._page[line], x_pos, y_pos, 0xFFFF)
+                            self._frame.text(self._page[line], x_pos, y_pos, self.COLORED)
+
                     else:
                         self._frame.text(self._page[line], x_pos, y_pos, self.COLORED)
 
@@ -899,11 +966,11 @@ class MonoDisplay:
         x_0 = columns[index_columns]
         y_0 = rows[index_rows]
 
-        if self._device == "st7735_1in44":
+        if self._device == "st7735_1in44" or self._device == "gc9a01":
             if self._tft_colored:
                 self._frame.rect(x_0, y_0, width, height, consts_mono_display.tft_color_theme['progbar_border_color'])
             else:
-                self._frame.rect(x_0, y_0, width, height, consts_mono_display.tft_color_theme['white'])
+                self._frame.rect(x_0, y_0, width, height, self.COLORED)
         else:
             self._frame.rect(x_0, y_0, width, height, colored)
 
@@ -919,13 +986,12 @@ class MonoDisplay:
                 if not k % 8:
                     width_progress = int((width / 100) * k)
 
-                    if self._device == "st7735_1in44":
+                    if self._device == "st7735_1in44" or self._device == "gc9a01":
                         if self._tft_colored:
                             self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border, height - border * 2, consts_mono_display.tft_color_theme['progbar_fill_color'])
                         else:
                             self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border,
-                                                  height - border * 2,
-                                                  consts_mono_display.tft_color_theme['white'])
+                                                  height - border * 2, self.COLORED)
                     else:
                         self._frame.fill_rect(x_0 + border, y_0 + border, width_progress - border, height - border * 2, colored)
 
@@ -940,7 +1006,7 @@ class MonoDisplay:
                     y_2 = y_0 + height - (border + 1)
 
                     if x_2 < width:
-                        if self._device == "st7735_1in44":
+                        if self._device == "st7735_1in44" or self._device == "gc9a01":
                             if self._tft_colored:
                                 self._frame.line(x_1 - 1, y_1, x_2 - 1, y_2, consts_mono_display.tft_color_theme['progbar_fill_color'])
                                 self._frame.line(x_1, y_1, x_2, y_2, consts_mono_display.tft_color_theme['progbar_fill_color'])
@@ -957,6 +1023,27 @@ class MonoDisplay:
                             self._frame.line(x_1, y_1, x_2, y_2, colored)
                             self._frame.line(x_1 + 1, y_1, x_2 + 1, y_2, colored)
                         self.show()
+
+    def draw_str(self, x, y, text="n/a", blit=False):
+        if blit:
+            if self._device == "st7735_1in44" or self._device == "gc9a01":
+                if self._tft_colored:
+                    self._frame.text(text, x, y, consts_mono_display.tft_color_theme['text_color'])
+                else:
+                    self._frame.text(text, x, y, self.COLORED)
+            else:
+                self._frame.text(text, x, y, self.COLORED)
+        else:
+            self.flushframe()
+            self.clear()
+
+            if self._device == "st7735_1in44" or self._device == "gc9a01":
+                if self._tft_colored:
+                    self._frame.text(text, x, y, consts_mono_display.tft_color_theme['text_color'])
+                else:
+                    self._frame.text(text, x, y, self.COLORED)
+            else:
+                self._frame.text(text, x, y, self.COLORED)
 
     @staticmethod
     def calculate_gear_coordinates(radius, angles):
@@ -1004,12 +1091,27 @@ class MonoDisplay:
             sleep_ms(wait)
 
     def draw_save_glyph(self, x, y):
+        # not working on TFT screen
         save_glyph = consts_mono_display.save_glyph  # save glyph 32x32
-        img_fbuf_save_glyph = framebuf.FrameBuffer(save_glyph, 32, 32, framebuf.MONO_VLSB)
+        img_fbuf_save_glyph = framebuf.FrameBuffer(save_glyph, 32, 32, framebuf.MONO_HLSB)
+
+        if self._device == "st7735_1in44" or self._device == "gc9a01":
+            if self._tft_colored:
+                set_color = 0x991b
+
+            else:
+                set_color = 0x991b
+
+        else:
+            set_color = self.COLORED
+
+        print("log() color: " + str(set_color))
 
         if self._device == "1in54_epd":
             self._frame.fill(0)
             self._frame.blit(img_fbuf_save_glyph, x, y, self.COLORED)
         else:
-            self._frame.blit(img_fbuf_save_glyph, x, y, self.UNCOLORED)
-        self.show()
+            self._frame.fill(0x0f89)
+            self._frame.blit(img_fbuf_save_glyph, x, y, set_color)
+
+        # self.show()
